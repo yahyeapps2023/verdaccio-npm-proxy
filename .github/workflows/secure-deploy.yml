@@ -57,36 +57,31 @@ jobs:
           APPINFO_COMMIT_SHA: ${{github.sha}}
     
         run: |
-          python3 - <<'PY'
+          python3 << 'PYTHON_EOF'
           import json
           import os
+          import base64
 
           PREFIX = "APPINFO_"
 
           env = {
-              k[len(PREFIX):]: v
-              for k, v in os.environ.items()
-              if k.startswith(PREFIX)
+              key[len(PREFIX):]: value
+              for key, value in os.environ.items()
+              if key.startswith(PREFIX)
           }
 
-          docker_repo = env.get("DOCKER_REPO", "")
-          app_name = env.get("APP_NAME", "")
-          commit_sha = env.get("COMMIT_SHA", "")
+          app_info = { 'ENV': env }
+          # INCLUDE IMAGE 
+          app_info['ENV']['IMAGE'] = app_info['ENV']['DOCKER_REPO'] + ":" + app_info['ENV']['APP_NAME'] + "-" + app_info['ENV']['COMMIT_SHA']
 
-          if docker_repo and app_name and commit_sha:
-              env["IMAGE"] = f"{docker_repo}:{app_name}-{commit_sha}"
-
-          app_info = {"ENV": env}
-
+          json_str = json.dumps(app_info, indent=2, sort_keys=True)
+          
           with open("/tmp/app_info.json", "w") as f:
-              json.dump(app_info, f, indent=2, sort_keys=True)
-
-          with open("/tmp/app_info.json", "w") as f:
-              json.dump(app_info, f, separators=(",", ":"))
-          PY
-
-          echo "app_info=$(cat /tmp/app_info.json)" >> "$GITHUB_OUTPUT"
-
+              f.write(json_str)
+          
+          encoded = base64.b64encode(json_str.encode()).decode()
+          print(f"app_info={encoded}")
+          PYTHON_EOF >> "$GITHUB_OUTPUT"
 
       - name: Upload app_info.json
         uses: actions/upload-artifact@v4
@@ -109,42 +104,37 @@ jobs:
         run: |
          corepack enable
          corepack prepare yarn@4.9.2 --activate
-         yarn install 
+         yarn install
 
-      - name: Verify dependencies
+      - name: Install Snyk
+        run: npm install snyk -g 
+
+      - name: Verify Snyk Token
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           if [ -z "$SNYK_TOKEN" ]; then
-            echo "⚠️ SNYK_TOKEN is not configured, skipping snyk monitor"
-          fi
-          echo "✅ Proceeding with yarn audit"
-
-      - name: Run yarn audit to check vulnerabilities
-        run: yarn audit
-
-      - name: Run yarn audit --fix to patch vulnerabilities
-        run: yarn audit --fix
-  
-      - name: Commit fixes (if any)
-        run: |
-          git config user.name "security-bot"
-          git config user.email "bot@security.io"
-          if git diff --quiet; then
-            echo "✅ No vulnerabilities fixed"
-          else
-            echo "Fixed vulnerabilities, committing changes..."
-            git add yarn.lock package.json
-            git commit -m "fix: security vulnerabilities via yarn audit"
-            git push
+            echo "❌ SNYK_TOKEN is not configured. Please set it in GitHub Secrets."
             exit 1
           fi
+          echo "✅ SNYK_TOKEN is configured"
 
-      - name: Verify no critical vulnerabilities remain
-        run: yarn audit --level critical
-
-      - name: Install Snyk
-        run: npm install snyk -g
+      - name: Run Snyk fix
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk fix --severity-threshold=high
+    
+      - name: Commit fixes (if any)
+        run: |
+          git config user.name "snyk-bot"
+          git config user.email "bot@snyk.io"
+          if git diff --quiet; then
+            echo "No vulnerabilities fixed"
+          else
+            git add .
+            git commit -m "fix: snyk security vulnerabilities"
+            git push origin HEAD:main
+          fi
 
       - name: Run Snyk test
         env:
