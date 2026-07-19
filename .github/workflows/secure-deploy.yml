@@ -57,7 +57,7 @@ jobs:
           APPINFO_COMMIT_SHA: ${{github.sha}}
     
         run: |
-          python3 - <<'PY'
+          python3 << 'PYTHON_EOF'
           import json
           import os
 
@@ -76,11 +76,13 @@ jobs:
 
           with open("/tmp/app_info.json", "w") as f:
               json.dump(app_info, f, indent=2, sort_keys=True)
-          PY
+          PYTHON_EOF
 
-          echo "app_info<<EOF" >> "$GITHUB_OUTPUT"
-          cat /tmp/app_info.json >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "app_info<<APPINFO_DELIMITER"
+            cat /tmp/app_info.json
+            echo "APPINFO_DELIMITER"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload app_info.json
         uses: actions/upload-artifact@v4
@@ -317,58 +319,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [docker, psv]
-    outputs:
-      app_info: ${{ steps.get_app_info.outputs.app_info }}
-
+   
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Generate app_info.json
-        id: get_app_info
-        env:
-          APPINFO_R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          APPINFO_S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
-          APPINFO_S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
-          APPINFO_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          APPINFO_R2_ACCOUNT_ID_B: ${{ secrets.R2_ACCOUNT_ID_B }}
-          APPINFO_R2_BUCKET_B: ${{ secrets.BACKUP_BACKET_NAME }}
-          APPINFO_AWS_ACCESS_KEY_ID_B: ${{ secrets.S3_ACCESS_KEY_ID_B }}
-          APPINFO_AWS_SECRET_ACCESS_KEY_B: ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
-          APPINFO_HOSTNAME: ${{ vars.HOSTNAME }}
-          APPINFO_NAMESPACE: ${{ vars.NAMESPACE }}
-          APPINFO_APP_NAME: ${{ vars.APP_NAME }}
-          APPINFO_SCANNER_PAT_TOKEN: ${{ secrets.SCANNER_PAT_TOKEN }}
-          APPINFO_DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          APPINFO_DOCKER_PAT_TOKEN: ${{ secrets.DOCKER_PAT_TOKEN }}
-          APPINFO_DOCKER_REPO: ${{ secrets.DOCKER_REPO }}
-          APPINFO_SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-          APPINFO_COMMIT_SHA: ${{ github.sha }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          
-          PREFIX = "APPINFO_"
-          
-          env = {
-              key[len(PREFIX):]: value
-              for key, value in os.environ.items()
-              if key.startswith(PREFIX)
-          }
-          
-          app_info = { 'ENV': env }
-          
-          with open("/tmp/app_info.json", "w") as f:
-              json.dump(app_info, f, indent=2, sort_keys=True)
-          PY
-          
-          echo "app_info<<EOF" >> "$GITHUB_OUTPUT"
-          cat /tmp/app_info.json >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Install cloudflared
         run: |
