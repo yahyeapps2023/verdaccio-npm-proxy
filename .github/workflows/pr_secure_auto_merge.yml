@@ -30,34 +30,12 @@ jobs:
          corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
-
-      - name: Run yarn dependency updates to fix vulnerable packages
-        run: |
-          echo "Updating dependencies with Yarn..."
-          yarn up --mode=skip-build
-          yarn install
-
-      - name: Commit fixes (if any)
-        run: |
-          git config user.name "security-bot"
-          git config user.email "bot@security.io"
-          if git diff --quiet; then
-            echo "✅ No dependency updates were required"
-          else
-            echo "Updated dependencies, committing changes..."
-            git add yarn.lock package.json
-            git commit -m "fix: update dependencies via yarn"
-            git push
-          fi
-
-      - name: Verify remaining vulnerabilities
-        run: |
-          echo "Checking remaining vulnerabilities after dependency updates..."
-          yarn npm audit --recursive --environment production --severity high || true
-
+ 
+ 
       - name: Install Snyk
-        run: npm install snyk -g
+        run: npm install snyk -g 
 
+        
       - name: Run Snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -67,7 +45,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk monitor
-
+ 
   # ----------------------------
   # 1️⃣ Socket Security Scan
   # ----------------------------

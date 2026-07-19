@@ -119,23 +119,6 @@ jobs:
           fi
           echo "✅ SNYK_TOKEN is configured"
 
-      - name: Run Snyk fix
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk fix --severity-threshold=high
-    
-      - name: Commit fixes (if any)
-        run: |
-          git config user.name "snyk-bot"
-          git config user.email "bot@snyk.io"
-          if git diff --quiet; then
-            echo "No vulnerabilities fixed"
-          else
-            git add .
-            git commit -m "fix: snyk security vulnerabilities"
-            git push origin HEAD:main
-          fi
-
       - name: Run Snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -145,6 +128,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk monitor
+ 
   # ----------------------------
   # 1️⃣ Socket Security Scan
   # ----------------------------
@@ -357,13 +341,10 @@ jobs:
       - name: Create deployment manifest
         run: |
           python3 -m pip install pyyaml -q
-          
-          # Decode base64-encoded app_info
-          export APP_INFO=$(echo "${{ needs.psv.outputs.app_info }}" | base64 -d)
-          
           python3 .github/create-kubernets-deployemen.py
         env:
           DEPLOYMENT_TEMPLATE: ${{ github.workspace }}/deployment.template.yml
+          APP_INFO: ${{ needs.psv.outputs.app_info }}
           DEPLOY_DIR: ${{ github.workspace }}/deployments
 
       - name: Configure SSH
