@@ -19,9 +19,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Dependencies
-        run: npm install googleapis archiver nodemailer
-
       - name: Archive Repository
         run: |
           mkdir -p backup
@@ -33,6 +30,12 @@ jobs:
           chmod 600 gpg-password.txt
           gpg --batch --yes --passphrase-file gpg-password.txt -c backup/${REPO_NAME}-repo.tar.gz
           chmod 644 gpg-password.txt
+
+      - name: Install Dependencies
+        run: |
+          rm package* 
+          npm init -y  
+          npm install googleapis archiver nodemailer 
 
       - name: Send Backup Email (SMTP + App Password)
         env:

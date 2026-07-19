@@ -47,6 +47,7 @@ jobs:
   
           APPINFO_HOSTNAME: ${{ vars.HOSTNAME }}
           APPINFO_NAMESPACE: ${{ vars.NAMESPACE }}
+          APPINFO_APP_NAME: ${{ vars.APP_NAME }}
  
           APPINFO_SCANNER_PAT_TOKEN: ${{ secrets.SCANNER_PAT_TOKEN }}
           APPINFO_DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
