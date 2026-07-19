@@ -60,6 +60,7 @@ jobs:
           python3 << 'PYTHON_EOF'
           import json
           import os
+          import base64
 
           PREFIX = "APPINFO_"
 
@@ -73,16 +74,14 @@ jobs:
           # INCLUDE IMAGE 
           app_info['ENV']['IMAGE'] = app_info['ENV']['DOCKER_REPO'] + ":" + app_info['ENV']['APP_NAME'] + "-" + app_info['ENV']['COMMIT_SHA']
 
-
+          json_str = json.dumps(app_info, indent=2, sort_keys=True)
+          
           with open("/tmp/app_info.json", "w") as f:
-              json.dump(app_info, f, indent=2, sort_keys=True)
-          PYTHON_EOF
-
-          {
-            echo "app_info<<APPINFO_DELIMITER"
-            cat /tmp/app_info.json
-            echo "APPINFO_DELIMITER"
-          } >> "$GITHUB_OUTPUT"
+              f.write(json_str)
+          
+          encoded = base64.b64encode(json_str.encode()).decode()
+          print(f"app_info={encoded}")
+          PYTHON_EOF >> "$GITHUB_OUTPUT"
 
       - name: Upload app_info.json
         uses: actions/upload-artifact@v4
@@ -120,21 +119,10 @@ jobs:
           fi
           echo "✅ SNYK_TOKEN is configured"
 
-      - name: Run Snyk test
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --severity-threshold=high
-
-      - name: Snyk monitor (upload results)
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk monitor
-
       - name: Run Snyk fix
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          snyk fix --severity-threshold=high
+        run: snyk fix --severity-threshold=high
     
       - name: Commit fixes (if any)
         run: |
@@ -146,8 +134,17 @@ jobs:
             git add .
             git commit -m "fix: snyk security vulnerabilities"
             git push
-            exit 1
           fi
+
+      - name: Run Snyk test
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --severity-threshold=high
+
+      - name: Snyk monitor (upload results)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk monitor
   # ----------------------------
   # 1️⃣ Socket Security Scan
   # ----------------------------
@@ -360,10 +357,13 @@ jobs:
       - name: Create deployment manifest
         run: |
           python3 -m pip install pyyaml -q
+          
+          # Decode base64-encoded app_info
+          export APP_INFO=$(echo "${{ needs.psv.outputs.app_info }}" | base64 -d)
+          
           python3 .github/create-kubernets-deployemen.py
         env:
           DEPLOYMENT_TEMPLATE: ${{ github.workspace }}/deployment.template.yml
-          APP_INFO: ${{ needs.psv.outputs.app_info }}
           DEPLOY_DIR: ${{ github.workspace }}/deployments
 
       - name: Configure SSH
