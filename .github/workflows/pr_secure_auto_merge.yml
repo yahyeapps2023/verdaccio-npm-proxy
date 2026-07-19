@@ -31,18 +31,31 @@ jobs:
          corepack prepare yarn@4.9.2 --activate
          yarn install
 
-      - name: Install Snyk
-        run: npm install snyk -g 
+      - name: Run yarn audit to check vulnerabilities
+        run: yarn audit
 
-      - name: Verify Snyk Token
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - name: Run yarn audit --fix to patch vulnerabilities
+        run: yarn audit --fix
+  
+      - name: Commit fixes (if any)
         run: |
-          if [ -z "$SNYK_TOKEN" ]; then
-            echo "❌ SNYK_TOKEN is not configured. Please set it in GitHub Secrets."
+          git config user.name "security-bot"
+          git config user.email "bot@security.io"
+          if git diff --quiet; then
+            echo "✅ No vulnerabilities fixed"
+          else
+            echo "Fixed vulnerabilities, committing changes..."
+            git add yarn.lock package.json
+            git commit -m "fix: security vulnerabilities via yarn audit"
+            git push
             exit 1
           fi
-          echo "✅ SNYK_TOKEN is configured"
+
+      - name: Verify no critical vulnerabilities remain
+        run: yarn audit --level critical
+
+      - name: Install Snyk
+        run: npm install snyk -g
 
       - name: Run Snyk test
         env:
