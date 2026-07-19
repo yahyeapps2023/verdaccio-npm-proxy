@@ -14,81 +14,9 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  psv:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      app_info: ${{ steps.sv.outputs.app_info }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Generate app_info.json
-        id: sv
-        env:
-
- 
-          APPINFO_R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          APPINFO_S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }} # yahyeapps
-          APPINFO_S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
-          APPINFO_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-  
-
-          APPINFO_R2_ACCOUNT_ID_B: ${{ secrets.R2_ACCOUNT_ID_B }}
-          APPINFO_R2_BUCKET_B: ${{ secrets.BACKUP_BACKET_NAME }} # yahyeapps
-          APPINFO_AWS_ACCESS_KEY_ID_B: ${{ secrets.S3_ACCESS_KEY_ID_B }}
-          APPINFO_AWS_SECRET_ACCESS_KEY_B: ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
-  
-          APPINFO_HOSTNAME: ${{ vars.HOSTNAME }}
-          APPINFO_NAMESPACE: ${{ vars.NAMESPACE }}
- 
-          APPINFO_SCANNER_PAT_TOKEN: ${{ secrets.SCANNER_PAT_TOKEN }}
-          APPINFO_DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          APPINFO_DOCKER_PAT_TOKEN: ${{ secrets.DOCKER_PAT_TOKEN }}
-          APPINFO_DOCKER_REPO: ${{ secrets.DOCKER_REPO }}
-          APPINFO_SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-     
- 
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-
-          PREFIX = "APPINFO_"
-
-          env = {
-              key[len(PREFIX):]: value
-              for key, value in os.environ.items()
-              if key.startswith(PREFIX)
-          }
-
-          app_info = { 'ENV': env }
-          # INCLUDE IMAGE 
-          app_info['ENV']['IMAGE'] = app_info['ENV']['DOCKER_REPO'] + ":" + app_info['ENV']['APP_NAME'] + "-" + app_info['ENV']['COMMIT_SHA']
-
-
-          with open("/tmp/app_info.json", "w") as f:
-              json.dump(app_info, f, indent=2, sort_keys=True)
-          PY
-
-          echo "app_info<<EOF" >> "$GITHUB_OUTPUT"
-          cat /tmp/app_info.json >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Upload app_info.json
-        uses: actions/upload-artifact@v4
-        with:
-          name: app_info
-          path: /tmp/app_info.json
-
-    # 4️⃣ Snyk Security Scan
+  # 4️⃣ Snyk Security Scan
   snyk-scan:
     runs-on: ubuntu-latest
-    needs: [psv]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -108,17 +36,17 @@ jobs:
 
       - name: Authenticate Snyk
         env:
-          SNYK_TOKEN: ${{ fromJSON(needs.psv.outputs.app_info).ENV.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk auth $SNYK_TOKEN
 
       - name: Run Snyk test
         env:
-          SNYK_TOKEN: ${{ fromJSON(needs.psv.outputs.app_info).ENV.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk test --severity-threshold=high
 
       - name: Snyk monitor (upload results)
         env:
-          SNYK_TOKEN: ${{ fromJSON(needs.psv.outputs.app_info).ENV.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk monitor
 
   # ----------------------------
@@ -126,7 +54,7 @@ jobs:
   # ----------------------------
   socket-scan:
     runs-on: ubuntu-latest
-    needs: [psv, snyk-scan]
+    needs: [snyk-scan]
     timeout-minutes: 20 # Maximum running time for this job
     steps:
       - uses: actions/checkout@v4
@@ -156,7 +84,7 @@ jobs:
   osv-security-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 20 # Maximum running time for this job
-    needs: [snyk-scan, psv, socket-scan]
+    needs: [snyk-scan, socket-scan]
     steps:
       - uses: actions/checkout@v4
 
@@ -191,7 +119,7 @@ jobs:
   codeql:
     runs-on: ubuntu-latest
     timeout-minutes: 20 # Maximum running time for this job
-    needs: [osv-security-scan, psv]
+    needs: [osv-security-scan]
     steps:
       - uses: actions/checkout@v4
 
@@ -269,7 +197,7 @@ jobs:
   build_test:
     runs-on: ubuntu-latest
     timeout-minutes: 20 # Maximum running time for this job
-    needs: [osv-security-scan, psv,codeql]
+    needs: [osv-security-scan, codeql]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
