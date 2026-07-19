@@ -130,6 +130,24 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk monitor
 
+      - name: Run Snyk fix
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk fix --severity-threshold=high
+    
+      - name: Commit fixes (if any)
+        run: |
+          git config user.name "snyk-bot"
+          git config user.email "bot@snyk.io"
+          if git diff --quiet; then
+            echo "No vulnerabilities fixed"
+          else
+            git add .
+            git commit -m "fix: snyk security vulnerabilities"
+            git push
+            exit 1
+          fi
   # ----------------------------
   # 1️⃣ Socket Security Scan
   # ----------------------------
