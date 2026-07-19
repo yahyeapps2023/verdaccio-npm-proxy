@@ -107,6 +107,7 @@ jobs:
  
       - name: Install dependencies
         run: |
+         corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
 
@@ -153,6 +154,7 @@ jobs:
   
       - name: Install dependencies
         run: |
+         corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
          
@@ -173,6 +175,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+         corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
 
@@ -208,6 +211,7 @@ jobs:
  
       - name: Install dependencies
         run: |
+         corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
 
@@ -287,6 +291,7 @@ jobs:
  
       - name: Install dependencies and build
         run: |
+         corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
          yarn build
