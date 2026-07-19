@@ -57,31 +57,36 @@ jobs:
           APPINFO_COMMIT_SHA: ${{github.sha}}
     
         run: |
-          python3 << 'PYTHON_EOF'
+          python3 - <<'PY'
           import json
           import os
-          import base64
 
           PREFIX = "APPINFO_"
 
           env = {
-              key[len(PREFIX):]: value
-              for key, value in os.environ.items()
-              if key.startswith(PREFIX)
+              k[len(PREFIX):]: v
+              for k, v in os.environ.items()
+              if k.startswith(PREFIX)
           }
 
-          app_info = { 'ENV': env }
-          # INCLUDE IMAGE 
-          app_info['ENV']['IMAGE'] = app_info['ENV']['DOCKER_REPO'] + ":" + app_info['ENV']['APP_NAME'] + "-" + app_info['ENV']['COMMIT_SHA']
+          docker_repo = env.get("DOCKER_REPO", "")
+          app_name = env.get("APP_NAME", "")
+          commit_sha = env.get("COMMIT_SHA", "")
 
-          json_str = json.dumps(app_info, indent=2, sort_keys=True)
-          
+          if docker_repo and app_name and commit_sha:
+              env["IMAGE"] = f"{docker_repo}:{app_name}-{commit_sha}"
+
+          app_info = {"ENV": env}
+
           with open("/tmp/app_info.json", "w") as f:
-              f.write(json_str)
-          
-          encoded = base64.b64encode(json_str.encode()).decode()
-          print(f"app_info={encoded}")
-          PYTHON_EOF >> "$GITHUB_OUTPUT"
+              json.dump(app_info, f, indent=2, sort_keys=True)
+
+          with open("/tmp/app_info.json", "w") as f:
+              json.dump(app_info, f, separators=(",", ":"))
+          PY
+
+          echo "app_info=$(cat /tmp/app_info.json)" >> "$GITHUB_OUTPUT"
+
 
       - name: Upload app_info.json
         uses: actions/upload-artifact@v4
