@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - main
-
+ 
+      - master
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -21,16 +22,19 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Install dependencies
-      - name: Install AWS SDK
-        run: npm install aws-sdk
-
       # 4️⃣ Zip repository
       - name: Archive Repository
         run: |
           mkdir -p backup
           git ls-files | zip backup/repo.zip -@
 
+      # 3️⃣ Install dependencies
+      - name: Install AWS SDK
+        run: |
+          rm package*
+          npm init -y  
+          npm install aws-sdk
+ 
       # 5️⃣ Upload to R2
       - name: Upload to Cloudflare R2
         env:

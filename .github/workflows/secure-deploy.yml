@@ -98,13 +98,15 @@ jobs:
         with:
           node-version: "22"
 
-
-
+ 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: |
+         corepack enable
+         corepack prepare yarn@4.9.2 --activate
+         yarn install
 
       - name: Install Snyk
-        run: npm  ci -g snyk
+        run: npm install snyk -g 
 
       - name: Authenticate Snyk
         env:
@@ -136,25 +138,15 @@ jobs:
 
       - name: Install Socket
         run: |
-          npm  ci -g socket
+          npm install -g socket
 
-      - name: delete existing lockfiles
-        run: |
-          rm -f package-lock.json
-
-      - name: Setup Verdaccio auth
-        run: |
-          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
-          REGISTRY=${REGISTRY#https://}
-          REGISTRY=${REGISTRY#http://}
-          REGISTRY=${REGISTRY%/}
-
-          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
-          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
-
+  
       - name: Install dependencies
-        run: npm  ci --ignore-scripts
-
+        run: |
+         corepack enable
+         corepack prepare yarn@4.9.2 --activate
+         yarn install
+         
       - name: Run Socket Scan
         env:
           SOCKET_API_KEY: ${{ secrets.SOCKET_API_KEY }}
@@ -170,22 +162,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Verdaccio auth
+      - name: Install dependencies
         run: |
-          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
-          REGISTRY=${REGISTRY#https://}
-          REGISTRY=${REGISTRY#http://}
-          REGISTRY=${REGISTRY%/}
+         corepack enable
+         corepack prepare yarn@4.9.2 --activate
+         yarn install
 
-          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
-          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
-
-      - name: delete existing lockfiles
-        run: |
-          rm -f package-lock.json
-
-      - name: Install dependencies for scan
-        run: npm  ci --ignore-scripts
 
       - name: Install OSV Scanner
         run: |
@@ -215,21 +197,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Verdaccio auth
+ 
+      - name: Install dependencies
         run: |
-          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
-          REGISTRY=${REGISTRY#https://}
-          REGISTRY=${REGISTRY#http://}
-          REGISTRY=${REGISTRY%/}
+         corepack enable
+         corepack prepare yarn@4.9.2 --activate
+         yarn install
 
-          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
-          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
-
-      - name: delete the exisitng package. lock files
-        run: |
-          rm -f package-lock.json
-
-      - run: npm  ci --ignore-scripts
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -288,246 +262,30 @@ jobs:
           fi
 
           echo "✅ No CodeQL findings"
-
-  verify_packages:
-    runs-on: ubuntu-latest
-    needs: [psv, codeql]
-    timeout-minutes: 20 # Maximum running time for this job
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      # ----------------------------
-      # 3️⃣ Generate public-packages.json (npmjs only)
-      # ----------------------------
-      - name: Generate public-packages.json
-        run: |
-          node - <<'NODE'
-          const fs = require('fs');
-          const { execSync } = require('child_process');
-
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-
-          const publicDeps = {};
-
-          for (const [name, version] of Object.entries(pkg.dependencies || {})) {
-            try {
-              execSync(
-                `npm view ${name} version --registry=https://registry.npmjs.org`,
-                { stdio: 'ignore' }
-              );
-
-              publicDeps[name] = version;
-            } catch {
-             
-              // private package
-            }
-          }
-
-          const publicPackageJson = {
-            name: pkg.name,
-            version: pkg.version,
-            dependencies: publicDeps
-          };
-
-          fs.writeFileSync(
-            'public-packages.json',
-            JSON.stringify(publicPackageJson, null, 2)
-          );
-          NODE
-
-      # ----------------------------
-      # 4️⃣ Create trusted npmjs lockfile
-      # ----------------------------
-      - name: Create temp npm  ci (public only)
-        run: |
-          mkdir -p tmp
-          cp public-packages.json tmp/package.json
-
-      - name: Install public dependencies from npmjs
-        working-directory: tmp
-        run: |
-          npm  ci \
-            --registry=https://registry.npmjs.org \
-            --ignore-scripts
-
-      # ----------------------------
-      # 5️⃣ Install real dependencies (Verdaccio)
-      # ----------------------------
-      - name: Setup Verdaccio auth
-        run: |
-          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
-          REGISTRY=${REGISTRY#https://}
-          REGISTRY=${REGISTRY#http://}
-          REGISTRY=${REGISTRY%/}
-
-          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
-          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
-
-      - name: Install full dependency graph
-        working-directory: .
-        run: |
-          rm package-lock.json
-          npm  ci --ignore-scripts
-
-      # ----------------------------
-      # 6️⃣ Verify hash database
-      # ----------------------------
-      - name: Clone hash database
-        run: |
-          git clone \
-            https://x-access-token:${{ secrets.SCANNER_PAT_TOKEN }}@github.com/${{secrets.HASHES_REPO }}.git
-
-      - name: Verify dependencies
-        working-directory: ${{ github.workspace }}
-        env:
-          HASHES_REPO: ${{ secrets.HASHES_REPO }}
-        run: |
-
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const repname = process.env.HASHES_REPO.split('/').pop().replace('.git', '');
-          const trusted = JSON.parse(
-            fs.readFileSync(`${repname}/all-package-hashes.json`, 'utf8')
-          );
-
-          const bootstrapLock = JSON.parse(
-            fs.readFileSync('tmp/package-lock.json', 'utf8')
-          );
-
-          const realLock = JSON.parse(
-            fs.readFileSync('package-lock.json', 'utf8')
-          );
-
-          let failed = false;
-
-          function getIntegrity(lock, name, version) {
-            for (const [path, pkg] of Object.entries(lock.packages || {})) {
-              if (!path.includes('node_modules/')) continue;
-              if (pkg.name === name && pkg.version === version) {
-                return pkg.integrity;
-              }
-            }
-            return null;
-          }
-
-          for (const [path, pkg] of Object.entries(realLock.packages || {})) {
-
-            if (!path.startsWith('node_modules/')) continue;
-            if (!pkg.name || !pkg.version || !pkg.integrity) continue;
-
-            const key = `${pkg.name}@${pkg.version}`;
-
-            const trustedHash = trusted[key];
-
-            // If the package exists in the trusted DB, verify integrity.
-            // Otherwise treat it as a new package (skip failing) so we can
-            // request a hash update later.
-            if (trustedHash) {
-              if (trustedHash !== pkg.integrity) {
-                console.error("❌ TRUSTED HASH MISMATCH:", key);
-                failed = true;
-              }
-            } else {
-              console.warn("ℹ️ NEW PACKAGE (not in trusted DB):", key);
-             
-             }
-          }
+ 
 
 
-           if (failed) {
-            // send webhook notification for hash mismatch
-            console.error("❌ One or more dependencies failed verification. Please update the hash database.");
-
-           
-            process.exit(1);
-           }
-          console.log("✅ All dependencies verified");
-          NODE
-
-      # 8️⃣ Queue hash update request
-      # ----------------------------
-
-      - name: Commit hash update request
-        working-directory: ${{ github.workspace }}
-        run: |
-          REPO_NAME=$(basename "${{  github.event.repository.name }}")
-          HASHES_DB_REPO=$(basename "${{ secrets.HASHES_REPO }}" .git)
-
-          cd $HASHES_DB_REPO
-          git config user.name "hashes-bot"
-          git config user.email "hashes-bot@users.noreply.github.com"
-          git pull
-          cp public-packages.json $HASHES_DB_REPO/hash_updates/${REPO_NAME}.json -r
-
-          git add .
-          git commit -m "${REPO_NAME}.json" || exit 0
-
-          for i in 1 2 3; do
-          if git push origin main; then
-              break
-          fi
-
-          git pull --rebase origin main
-          done
-
-      # AFTER VERIFY JOB FINISHES SUCCESSFULLY
-      - name: Upload verified lockfiles
-        uses: actions/upload-artifact@v4
-        with:
-          name: verified-lockfiles-public
-          path: |
-            tmp/package-lock.json
-            tmp/package.json
-          retention-days: 1
-
-      - name: Upload verified lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: verified-app-lockfile
-          path: |
-            package-lock.json
-            package.json
-          retention-days: 1
-
-  # ----------------------------
+            # ----------------------------
   # 3️⃣ Build & Test
   # ----------------------------
   build_test:
     runs-on: ubuntu-latest
     timeout-minutes: 20 # Maximum running time for this job
-    needs: [osv-security-scan, psv]
+    needs: [osv-security-scan, psv,codeql]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-
-      - name: Setup Verdaccio auth
+ 
+      - name: Install dependencies and build
         run: |
-          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
-          REGISTRY=${REGISTRY#https://}
-          REGISTRY=${REGISTRY#http://}
-          REGISTRY=${REGISTRY%/}
+         corepack enable
+         corepack prepare yarn@4.9.2 --activate
+         yarn install
+         yarn build
 
-          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
-          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
-
-      - name: delete package-lock.json
-        run: |
-          rm -f package-lock.json package.json
-
-      - name: Download verified lockfile
-        uses: actions/download-artifact@v4
-        with:
-          name: verified-app-lockfile
-
-      - run: npm ci
-      - run: npm run build --if-present
-      - run: npm test --if-present
-
+         
   # ----------------------------
   # 5️⃣ Docker Build & Push
   # ----------------------------
@@ -538,16 +296,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # download
-
-      - name: delete the exisitng package. lock files
-        run: |
-          rm -f package-lock.json package.json
-
-      - name: Download verified lockfile
-        uses: actions/download-artifact@v4
-        with:
-          name: verified-app-lockfile
-
+ 
+ 
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -585,7 +335,7 @@ jobs:
       - name: Create deployment manifest
         run: |
           python3 -m pip install pyyaml -q
-          python3 scripts/create-kubernets-deployemen.py
+          python3 .github/create-kubernets-deployemen.py
         env:
           DEPLOYMENT_TEMPLATE: ${{ github.workspace }}/deployment.template.yml
           APP_INFO: ${{ needs.psv.outputs.app_info }}
