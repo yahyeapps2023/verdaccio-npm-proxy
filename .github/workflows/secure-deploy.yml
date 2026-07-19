@@ -1,0 +1,636 @@
+name: "Deploy with Security Checks"
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  psv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      app_info: ${{ steps.sv.outputs.app_info }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Generate app_info.json
+        id: sv
+        env:
+
+ 
+          APPINFO_R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          APPINFO_S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }} # yahyeapps
+          APPINFO_S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          APPINFO_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+  
+
+          APPINFO_R2_ACCOUNT_ID_B: ${{ secrets.R2_ACCOUNT_ID_B }}
+          APPINFO_R2_BUCKET_B: ${{ secrets.BACKUP_BACKET_NAME }} # yahyeapps
+          APPINFO_AWS_ACCESS_KEY_ID_B: ${{ secrets.S3_ACCESS_KEY_ID_B }}
+          APPINFO_AWS_SECRET_ACCESS_KEY_B: ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
+  
+          APPINFO_HOSTNAME: ${{ vars.HOSTNAME }}
+          APPINFO_NAMESPACE: ${{ vars.NAMESPACE }}
+ 
+          APPINFO_SCANNER_PAT_TOKEN: ${{ secrets.SCANNER_PAT_TOKEN }}
+          APPINFO_DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          APPINFO_DOCKER_PAT_TOKEN: ${{ secrets.DOCKER_PAT_TOKEN }}
+          APPINFO_DOCKER_REPO: ${{ secrets.DOCKER_REPO }}
+          APPINFO_SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+     
+ 
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          PREFIX = "APPINFO_"
+
+          env = {
+              key[len(PREFIX):]: value
+              for key, value in os.environ.items()
+              if key.startswith(PREFIX)
+          }
+
+          app_info = { 'ENV': env }
+          # INCLUDE IMAGE 
+          app_info['ENV']['IMAGE'] = app_info['ENV']['DOCKER_REPO'] + ":" + app_info['ENV']['APP_NAME'] + "-" + app_info['ENV']['COMMIT_SHA']
+
+
+          with open("/tmp/app_info.json", "w") as f:
+              json.dump(app_info, f, indent=2, sort_keys=True)
+          PY
+
+          echo "app_info<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/app_info.json >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Upload app_info.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: app_info
+          path: /tmp/app_info.json
+
+    # 4️⃣ Snyk Security Scan
+  snyk-scan:
+    runs-on: ubuntu-latest
+    needs: [psv]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Snyk
+        run: npm  ci -g snyk
+
+      - name: Authenticate Snyk
+        env:
+          SNYK_TOKEN: ${{ fromJSON(needs.psv.outputs.app_info).ENV.SNYK_TOKEN }}
+        run: snyk auth $SNYK_TOKEN
+
+      - name: Run Snyk test
+        env:
+          SNYK_TOKEN: ${{ fromJSON(needs.psv.outputs.app_info).ENV.SNYK_TOKEN }}
+        run: snyk test --severity-threshold=high
+
+      - name: Snyk monitor (upload results)
+        env:
+          SNYK_TOKEN: ${{ fromJSON(needs.psv.outputs.app_info).ENV.SNYK_TOKEN }}
+        run: snyk monitor
+
+  # ----------------------------
+  # 1️⃣ Socket Security Scan
+  # ----------------------------
+  socket-scan:
+    runs-on: ubuntu-latest
+    needs: [psv, snyk-scan]
+    timeout-minutes: 20 # Maximum running time for this job
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Socket
+        run: |
+          npm  ci -g socket
+
+      - name: delete existing lockfiles
+        run: |
+          rm -f package-lock.json
+
+      - name: Setup Verdaccio auth
+        run: |
+          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
+          REGISTRY=${REGISTRY#https://}
+          REGISTRY=${REGISTRY#http://}
+          REGISTRY=${REGISTRY%/}
+
+          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
+          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
+
+      - name: Install dependencies
+        run: npm  ci --ignore-scripts
+
+      - name: Run Socket Scan
+        env:
+          SOCKET_API_KEY: ${{ secrets.SOCKET_API_KEY }}
+        run: socket scan --api-key="$SOCKET_API_KEY" --fail-on=policy
+
+  # ----------------------------
+  # 2️⃣ OSV Security Scan
+  # ----------------------------
+  osv-security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # Maximum running time for this job
+    needs: [snyk-scan, psv, socket-scan]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Verdaccio auth
+        run: |
+          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
+          REGISTRY=${REGISTRY#https://}
+          REGISTRY=${REGISTRY#http://}
+          REGISTRY=${REGISTRY%/}
+
+          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
+          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
+
+      - name: delete existing lockfiles
+        run: |
+          rm -f package-lock.json
+
+      - name: Install dependencies for scan
+        run: npm  ci --ignore-scripts
+
+      - name: Install OSV Scanner
+        run: |
+          curl -L -o osv-scanner https://github.com/google/osv-scanner/releases/download/v2.3.3/osv-scanner_linux_amd64
+          chmod +x osv-scanner
+          sudo mv osv-scanner /usr/local/bin/
+
+      - name: Run OSV Scanner
+        run: osv-scanner --recursive ./ --format json --output osv-results.json
+
+      - name: Fail if vulnerabilities found
+        run: |
+          VULN_COUNT=$(jq '[.results[]?.packages[]?.vulnerabilities | length] | add' osv-results.json)
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "❌ Found vulnerabilities"
+            exit 1
+          else
+            echo "✅ No vulnerabilities"
+          fi
+
+  # 5️⃣ CodeQL
+  # ----------------------------
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # Maximum running time for this job
+    needs: [osv-security-scan, psv]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Verdaccio auth
+        run: |
+          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
+          REGISTRY=${REGISTRY#https://}
+          REGISTRY=${REGISTRY#http://}
+          REGISTRY=${REGISTRY%/}
+
+          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
+          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
+
+      - name: delete the exisitng package. lock files
+        run: |
+          rm -f package-lock.json
+
+      - run: npm  ci --ignore-scripts
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Download CodeQL Bundle
+        run: |
+          CODEQL_VERSION=2.22.1
+
+          wget -q \
+            https://github.com/github/codeql-action/releases/download/codeql-bundle-v${CODEQL_VERSION}/codeql-bundle-linux64.tar.gz \
+            -O codeql-bundle-linux64.tar.gz
+
+          mkdir -p codeql
+          tar -xzf codeql-bundle-linux64.tar.gz -C codeql --strip-components=1
+          echo "$PWD/codeql" >> $GITHUB_PATH
+
+      - name: Create CodeQL Database
+        run: |
+          codeql database create codeql-db \
+            --language=javascript \
+            --source-root=. \
+            --codescanning-config=./codeql-config.yml
+
+      - name: Run CodeQL Analysis
+        run: |
+          mkdir -p codeql-results
+
+          codeql database analyze \
+            codeql-db \
+            --format=sarif-latest \
+            --output=codeql-results/results.sarif
+
+      - name: Fail on CodeQL Findings
+        run: |
+          SARIF=codeql-results/results.sarif
+
+          if [ ! -f "$SARIF" ]; then
+            echo "❌ SARIF missing"
+            exit 1
+          fi
+
+          ALERTS=$(jq '[.runs[].results[]? | select(.level=="error" or .level=="warning")] | length' "$SARIF")
+
+          echo "CodeQL alerts: $ALERTS"
+
+          if [ "$ALERTS" -gt 0 ]; then
+            echo "❌ CodeQL detected issues:"
+
+            jq -r '
+              .runs[].results[] |
+              select(.level=="error" or .level=="warning") |
+              "\(.ruleId) [\(.level)] \(.message.text) (\(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine))"
+            ' "$SARIF"
+
+            exit 1
+          fi
+
+          echo "✅ No CodeQL findings"
+
+  verify_packages:
+    runs-on: ubuntu-latest
+    needs: [psv, codeql]
+    timeout-minutes: 20 # Maximum running time for this job
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # ----------------------------
+      # 3️⃣ Generate public-packages.json (npmjs only)
+      # ----------------------------
+      - name: Generate public-packages.json
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
+          const publicDeps = {};
+
+          for (const [name, version] of Object.entries(pkg.dependencies || {})) {
+            try {
+              execSync(
+                `npm view ${name} version --registry=https://registry.npmjs.org`,
+                { stdio: 'ignore' }
+              );
+
+              publicDeps[name] = version;
+            } catch {
+             
+              // private package
+            }
+          }
+
+          const publicPackageJson = {
+            name: pkg.name,
+            version: pkg.version,
+            dependencies: publicDeps
+          };
+
+          fs.writeFileSync(
+            'public-packages.json',
+            JSON.stringify(publicPackageJson, null, 2)
+          );
+          NODE
+
+      # ----------------------------
+      # 4️⃣ Create trusted npmjs lockfile
+      # ----------------------------
+      - name: Create temp npm  ci (public only)
+        run: |
+          mkdir -p tmp
+          cp public-packages.json tmp/package.json
+
+      - name: Install public dependencies from npmjs
+        working-directory: tmp
+        run: |
+          npm  ci \
+            --registry=https://registry.npmjs.org \
+            --ignore-scripts
+
+      # ----------------------------
+      # 5️⃣ Install real dependencies (Verdaccio)
+      # ----------------------------
+      - name: Setup Verdaccio auth
+        run: |
+          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
+          REGISTRY=${REGISTRY#https://}
+          REGISTRY=${REGISTRY#http://}
+          REGISTRY=${REGISTRY%/}
+
+          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
+          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
+
+      - name: Install full dependency graph
+        working-directory: .
+        run: |
+          rm package-lock.json
+          npm  ci --ignore-scripts
+
+      # ----------------------------
+      # 6️⃣ Verify hash database
+      # ----------------------------
+      - name: Clone hash database
+        run: |
+          git clone \
+            https://x-access-token:${{ secrets.SCANNER_PAT_TOKEN }}@github.com/${{secrets.HASHES_REPO }}.git
+
+      - name: Verify dependencies
+        working-directory: ${{ github.workspace }}
+        env:
+          HASHES_REPO: ${{ secrets.HASHES_REPO }}
+        run: |
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const repname = process.env.HASHES_REPO.split('/').pop().replace('.git', '');
+          const trusted = JSON.parse(
+            fs.readFileSync(`${repname}/all-package-hashes.json`, 'utf8')
+          );
+
+          const bootstrapLock = JSON.parse(
+            fs.readFileSync('tmp/package-lock.json', 'utf8')
+          );
+
+          const realLock = JSON.parse(
+            fs.readFileSync('package-lock.json', 'utf8')
+          );
+
+          let failed = false;
+
+          function getIntegrity(lock, name, version) {
+            for (const [path, pkg] of Object.entries(lock.packages || {})) {
+              if (!path.includes('node_modules/')) continue;
+              if (pkg.name === name && pkg.version === version) {
+                return pkg.integrity;
+              }
+            }
+            return null;
+          }
+
+          for (const [path, pkg] of Object.entries(realLock.packages || {})) {
+
+            if (!path.startsWith('node_modules/')) continue;
+            if (!pkg.name || !pkg.version || !pkg.integrity) continue;
+
+            const key = `${pkg.name}@${pkg.version}`;
+
+            const trustedHash = trusted[key];
+
+            // If the package exists in the trusted DB, verify integrity.
+            // Otherwise treat it as a new package (skip failing) so we can
+            // request a hash update later.
+            if (trustedHash) {
+              if (trustedHash !== pkg.integrity) {
+                console.error("❌ TRUSTED HASH MISMATCH:", key);
+                failed = true;
+              }
+            } else {
+              console.warn("ℹ️ NEW PACKAGE (not in trusted DB):", key);
+             
+             }
+          }
+
+
+           if (failed) {
+            // send webhook notification for hash mismatch
+            console.error("❌ One or more dependencies failed verification. Please update the hash database.");
+
+           
+            process.exit(1);
+           }
+          console.log("✅ All dependencies verified");
+          NODE
+
+      # 8️⃣ Queue hash update request
+      # ----------------------------
+
+      - name: Commit hash update request
+        working-directory: ${{ github.workspace }}
+        run: |
+          REPO_NAME=$(basename "${{  github.event.repository.name }}")
+          HASHES_DB_REPO=$(basename "${{ secrets.HASHES_REPO }}" .git)
+
+          cd $HASHES_DB_REPO
+          git config user.name "hashes-bot"
+          git config user.email "hashes-bot@users.noreply.github.com"
+          git pull
+          cp public-packages.json $HASHES_DB_REPO/hash_updates/${REPO_NAME}.json -r
+
+          git add .
+          git commit -m "${REPO_NAME}.json" || exit 0
+
+          for i in 1 2 3; do
+          if git push origin main; then
+              break
+          fi
+
+          git pull --rebase origin main
+          done
+
+      # AFTER VERIFY JOB FINISHES SUCCESSFULLY
+      - name: Upload verified lockfiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-lockfiles-public
+          path: |
+            tmp/package-lock.json
+            tmp/package.json
+          retention-days: 1
+
+      - name: Upload verified lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-app-lockfile
+          path: |
+            package-lock.json
+            package.json
+          retention-days: 1
+
+  # ----------------------------
+  # 3️⃣ Build & Test
+  # ----------------------------
+  build_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # Maximum running time for this job
+    needs: [osv-security-scan, psv]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Verdaccio auth
+        run: |
+          REGISTRY=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_REGISTRY }}
+          REGISTRY=${REGISTRY#https://}
+          REGISTRY=${REGISTRY#http://}
+          REGISTRY=${REGISTRY%/}
+
+          echo "//${REGISTRY}/:_authToken=${{ fromJSON(needs.psv.outputs.app_info).ENV.VERDACCIO_TOKEN }}" > ~/.npmrc
+          echo "registry=https://${REGISTRY}/" >> ~/.npmrc
+
+      - name: delete package-lock.json
+        run: |
+          rm -f package-lock.json package.json
+
+      - name: Download verified lockfile
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-app-lockfile
+
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test --if-present
+
+  # ----------------------------
+  # 5️⃣ Docker Build & Push
+  # ----------------------------
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # Maximum running time for this job
+    needs: [codeql, psv]
+    steps:
+      - uses: actions/checkout@v4
+      # download
+
+      - name: delete the exisitng package. lock files
+        run: |
+          rm -f package-lock.json package.json
+
+      - name: Download verified lockfile
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-app-lockfile
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ fromJSON(needs.psv.outputs.app_info).ENV.DOCKER_USERNAME }}
+          password: ${{ fromJSON(needs.psv.outputs.app_info).ENV.DOCKER_PAT_TOKEN }} # Fixed typo: was DOCKER_PAT_TOCKEN
+
+      - name: Build & Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ fromJSON(needs.psv.outputs.app_info).ENV.IMAGE }}
+            ${{ fromJSON(needs.psv.outputs.app_info).ENV.DOCKER_REPO }}:${{ fromJSON(needs.psv.outputs.app_info).ENV.APP_NAME }}-latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [docker, psv]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+            | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
+            | sudo tee /etc/apt/sources.list.d/cloudflared.list
+
+          sudo apt update
+          sudo apt install -y cloudflared
+
+      - name: Create deployment manifest
+        run: |
+          python3 -m pip install pyyaml -q
+          python3 scripts/create-kubernets-deployemen.py
+        env:
+          DEPLOYMENT_TEMPLATE: ${{ github.workspace }}/deployment.template.yml
+          APP_INFO: ${{ needs.psv.outputs.app_info }}
+          DEPLOY_DIR: ${{ github.workspace }}/deployments
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          cat > ~/.ssh/config <<EOF
+          Host deploy-server
+            HostName ${{vars.SSH_HOST}}
+            User yahyeapps
+            port ${{vars.SSH_PORT}} 
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ProxyCommand cloudflared access ssh \
+              --hostname %h \
+              --service-token-id $CLOUDFLARE_SSH_ACCESS_CLIENT_ID \
+              --service-token-secret $CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET
+          EOF
+        env:
+          CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
+          CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET }}
+
+      - name: Test SSH connection
+        run: |
+          if ! ssh -o BatchMode=yes \
+              -o ConnectTimeout=10 \
+              deploy-server \
+              "echo Connected successfully"
+          then
+            echo "❌ SSH connection failed."
+            exit 1
+          fi
+
+      - name: Copy manifest to server
+        run: |
+          scp deployments/deployment.yml deploy-server:/tmp/deployment.yml
+
+      - name: Deploy
+        run: |
+          ssh deploy-server \
+            "kubectl apply -f /tmp/deployment.yml"
