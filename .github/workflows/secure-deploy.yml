@@ -110,6 +110,16 @@ jobs:
       - name: Install Snyk
         run: npm install snyk -g 
 
+      - name: Verify Snyk Token
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "❌ SNYK_TOKEN is not configured. Please set it in GitHub Secrets."
+            exit 1
+          fi
+          echo "✅ SNYK_TOKEN is configured"
+
       - name: Run Snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
