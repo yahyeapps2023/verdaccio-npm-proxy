@@ -14,11 +14,11 @@ jobs:
     steps:
       # 1️⃣ Checkout repository
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # 2️⃣ Install Node.js
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -39,7 +39,7 @@ jobs:
       - name: Upload to Cloudflare R2
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID_B }}
-          R2_BUCKET: ${{ secrets.BACKUP_BACKET_NAME }} # yahyeapps
+          R2_BUCKET: ${{ vars.BACKUP_BACKET_NAME }} # yahyeapps
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID_B }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
           GITHUB_REPOSITORY: ${{ github.repository }}
