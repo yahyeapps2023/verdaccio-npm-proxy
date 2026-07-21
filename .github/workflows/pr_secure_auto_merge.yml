@@ -15,6 +15,9 @@ env:
 
 jobs:
   # 4️⃣ Snyk Security Scan
+
+
+    # 4️⃣ Snyk Security Scan
   snyk-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -30,12 +33,20 @@ jobs:
          corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
- 
- 
+
       - name: Install Snyk
         run: npm install snyk -g 
 
-        
+      - name: Verify Snyk Token
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "❌ SNYK_TOKEN is not configured. Please set it in GitHub Secrets."
+            exit 1
+          fi
+          echo "✅ SNYK_TOKEN is configured"
+
       - name: Run Snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -63,14 +74,12 @@ jobs:
         run: |
           npm install -g socket
 
-  
       - name: Install dependencies
         run: |
          corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
-         
-     
+ 
       - name: Run Socket Scan
         env:
           SOCKET_CLI_API_TOKEN: ${{ secrets.SOCKET_API_KEY }}
@@ -132,7 +141,7 @@ jobs:
           else
             echo "✅ No vulnerabilities"
           fi
-
+  
   # 5️⃣ CodeQL
   # ----------------------------
   codeql:
