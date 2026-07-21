@@ -150,7 +150,11 @@ jobs:
       - name: Install Socket
         run: |
           npm install -g socket
-
+      - name: Debug Socket CLI
+        run: |
+          socket --version
+          socket --help
+          socket scan --help
   
       - name: Install dependencies
         run: |
