@@ -1,66 +1,38 @@
-# deployments template for fallback; contains placeholders {{NAMESPACE}}, {{HOSTNAME}}, {{IMAGE}}
-
----
-# Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: "{{NAMESPACE}}"
-
----
-# Kubernetes Secret for environment variables / secrets
-apiVersion: v1
-kind: Secret
-metadata:
-  name: webhook-secrets
-  namespace: "{{NAMESPACE}}"
-type: Opaque
-stringData:
-  # EXAMPLE_KEY: "example-value"
-
+ 
 ---
 # Certificate
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: app-cert
-  namespace: "{{NAMESPACE}}"
+  name: verdaccio-cert
+  namespace: yahyeapps
 spec:
-  secretName: app-tls
+  secretName: verdaccio-cert-tls
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - "{{HOSTNAME}}"
+    - registry.yahyasimple.com
 
----
-# ConfigMap for environment variables
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-configmap
-  namespace: "{{NAMESPACE}}"
-data:
-  # VAR_KEY: "VAR_VALUE"
-
+ 
 ---
 # Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: app-deployment
-  namespace: "{{NAMESPACE}}"
+  name: verdaccio-deployment
+  namespace: yahyeapps
   labels:
-    app: app-deployment
+    app: verdaccio-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: app-deployment
+      app: verdaccio-deployment
   template:
     metadata:
       labels:
-        app: app-deployment
+        app: verdaccio-deployment
     spec:
       containers:
         - name: webhook
@@ -70,7 +42,32 @@ spec:
             - containerPort: 4000
               name: http
           env:
-            # env from configmap and secrets will be injected
+            - name: R2_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: webhook-secrets
+                  key: R2_BUCKET
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: webhook-secrets
+                  key: S3_SECRET_ACCESS_KEY
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: webhook-secrets
+                  key: S3_ACCESS_KEY_ID
+            - name: R2_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: webhook-secrets
+                  key: R2_ENDPOINT
+            - name: PORT
+              valueFrom:
+                secretKeyRef:
+                  name: webhook-secrets
+                  key: PORT
+      
       imagePullSecrets:
         - name: my-dockerhub-secret
 
@@ -79,10 +76,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: app-service
-  namespace: "{{NAMESPACE}}"
+  name: verdaccio-service
+  namespace: yahyeapps
   labels:
-    app: app-service
+    app: verdaccio-service
 spec:
   type: ClusterIP
   ports:
@@ -91,15 +88,15 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: app-deployment
+    app: verdaccio-deployment
 
 ---
 # Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: app-ingress
-  namespace: "{{NAMESPACE}}"
+  name: verdaccio-ingress
+  namespace: yahyeapps
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
@@ -111,16 +108,16 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - "{{HOSTNAME}}"
-      secretName: app-tls
+        - registry.yahyasimple.com
+      secretName: verdaccio-cert-tls
   rules:
-    - host: "{{HOSTNAME}}"
+    - host: "registry.yahyasimple.com"
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: app-service
+                name: verdaccio-service
                 port:
                   number: 80

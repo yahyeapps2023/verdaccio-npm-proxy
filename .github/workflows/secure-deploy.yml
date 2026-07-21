@@ -16,72 +16,7 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  psv:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      app_info: ${{ steps.sv.outputs.app_info }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Generate app_info.json
-        id: sv
-        env:
-
-          APPINFO_R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          APPINFO_S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }} # yahyeapps-npm
-          APPINFO_S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
-          APPINFO_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-   
-          APPINFO_HOSTNAME: ${{ vars.HOSTNAME }}
-          APPINFO_NAMESPACE: ${{ vars.NAMESPACE }}
-          APPINFO_APP_NAME: ${{ vars.APP_NAME }}
-          APPINFO_DOCKER_REPO: ${{ vars.DOCKER_REPO }}
-          APPINFO_COMMIT_SHA: ${{github.sha}}
-    
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-
-          PREFIX = "APPINFO_"
-
-          env = {
-              k[len(PREFIX):]: v
-              for k, v in os.environ.items()
-              if k.startswith(PREFIX)
-          }
-
-          docker_repo = env.get("DOCKER_REPO", "")
-          app_name = env.get("APP_NAME", "")
-          commit_sha = env.get("COMMIT_SHA", "")
-
-          if docker_repo and app_name and commit_sha:
-              env["IMAGE"] = f"{docker_repo}:{app_name}-{commit_sha}"
-
-          app_info = {"ENV": env}
-
-          with open("/tmp/app_info.json", "w") as f:
-              json.dump(app_info, f, indent=2, sort_keys=True)
-
-          with open("/tmp/app_info.json", "w") as f:
-              json.dump(app_info, f, separators=(",", ":"))
-          PY
-
-          echo "app_info=$(cat /tmp/app_info.json)" >> "$GITHUB_OUTPUT"
-
-
-      - name: Upload app_info.json
-        uses: actions/upload-artifact@v4
-        with:
-          name: app_info
-          path: /tmp/app_info.json
-
+ 
     # 4️⃣ Snyk Security Scan
   snyk-scan:
     runs-on: ubuntu-latest
@@ -335,7 +270,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [docker, psv]
+    needs: [docker]
    
     steps:
       - uses: actions/checkout@v4
@@ -350,30 +285,13 @@ jobs:
 
           sudo apt update
           sudo apt install -y cloudflared
-
-      - name: Download app_info artifact
-        if: always()
-        uses: actions/download-artifact@v4
-        with:
-          name: app_info
-          path: ./artifacts
-
-      - name: Create deployment manifest
-        run: |
-          python3 -m pip install pyyaml -q
-          if [ ! -f "./artifacts/app_info.json" ]; then
-            echo "❌ app_info artifact missing"
-            ls -la ./artifacts || true
-            exit 1
-          fi
-
-          export APP_INFO="$(cat ./artifacts/app_info.json)"
-
-          python3 .github/create-kubernets-deployemen.py
+ 
+      - name: update image name and tag in deployment same as docker build and push
         env:
-          DEPLOYMENT_TEMPLATE: ${{ github.workspace }}/deployment.template.yml
-          DEPLOY_DIR: ${{ github.workspace }}/deployments
-
+          IMAGE: ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}          
+        run: | 
+          sed -i "s|{{IMAGE}}|$IMAGE|g" deployments/deployments.yml
+          
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -414,6 +332,25 @@ jobs:
           scp deployments/deployments.yml deploy-server:/tmp/deployment.yml
 
       - name: Deploy
+        # create secretes using kubctl cli 
+        env:
+          PORT: ${{ secrets.PORT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
-          ssh deploy-server \
-            "kubectl apply -f /tmp/deployment.yml"
+          ssh deploy-server << 'EOF'
+            # create the namescpace if not exists use dry run 
+          kubectl create namespace yahyeapps --dry-run=client -o yaml | kubectl apply -f -
+          # Create or update the Kubernetes secret
+          kubectl create secret generic webhook-secrets \
+            --from-literal=PORT=$PORT \
+            --from-literal=R2_BUCKET=$R2_BUCKET \
+            --from-literal=S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID \
+            --from-literal=S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY \
+            --from-literal=R2_ENDPOINT=$R2_ENDPOINT \
+            --dry-run=client -o yaml | kubectl apply -f -
+             
+            kubectl apply -f /tmp/deployment.yml
+          EOF
