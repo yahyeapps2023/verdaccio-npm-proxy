@@ -102,11 +102,32 @@ jobs:
       - name: Run OSV Scanner
         run: osv-scanner --recursive ./ --format json --output osv-results.json || true
 
+      - name: Print OSV vulnerabilities
+        run: |
+          echo "=== OSV scan results ==="
+          jq -r '
+            .results[]?.packages[]? |
+            select(.vulnerabilities != null and (.vulnerabilities | length) > 0) |
+            "Package: \(.package.name)@\(.package.version)\n" +
+            ( .vulnerabilities[] |
+              "  - [\(.id)] \(.summary // .details // "(no summary)")" )
+          ' osv-results.json || true
+          echo "=== OSV summary ==="
+          TOTAL=$(jq '[.results[]?.packages[]?.vulnerabilities | length // 0] | add' osv-results.json)
+          echo "Total vulnerabilities: ${TOTAL:-0}"
+
+      - name: Upload OSV results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-results
+          path: osv-results.json
+
       - name: Fail if vulnerabilities found
         run: |
-          VULN_COUNT=$(jq '[.results[]?.packages[]?.vulnerabilities | length] | add' osv-results.json)
+          VULN_COUNT=$(jq '[.results[]?.packages[]?.vulnerabilities | length // 0] | add' osv-results.json)
           if [ "$VULN_COUNT" -gt 0 ]; then
-            echo "❌ Found vulnerabilities"
+            echo "❌ Found vulnerabilities: $VULN_COUNT"
             exit 1
           else
             echo "✅ No vulnerabilities"
