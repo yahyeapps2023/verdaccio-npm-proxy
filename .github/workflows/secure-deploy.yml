@@ -156,7 +156,12 @@ jobs:
          corepack enable
          corepack prepare yarn@4.9.2 --activate
          yarn install
-              
+
+      - name: Check Socket env variables
+        run: |
+          socket --help-full | grep -A20 "Environment variables"
+            socket login --help-full 
+                
       - name: Run Socket Scan
         env:
           SOCKET_API_KEY: ${{ secrets.SOCKET_API_KEY }}
