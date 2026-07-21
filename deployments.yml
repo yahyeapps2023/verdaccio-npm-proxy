@@ -1,3 +1,13 @@
+# deployments template for fallback; contains placeholders {{NAMESPACE}}, {{HOSTNAME}}, {{IMAGE}}
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "{{NAMESPACE}}"
+
+---
  
 ---
 # Certificate
@@ -5,14 +15,14 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: verdaccio-cert
-  namespace: yahyeapps
+  namespace: "{{NAMESPACE}}"
 spec:
   secretName: verdaccio-cert-tls
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - registry.yahyasimple.com
+    - "{{HOSTNAME}}"
 
  
 ---
@@ -21,7 +31,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: verdaccio-deployment
-  namespace: yahyeapps
+  namespace: "{{NAMESPACE}}"
   labels:
     app: verdaccio-deployment
 spec:
@@ -77,7 +87,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: verdaccio-service
-  namespace: yahyeapps
+  namespace: "{{NAMESPACE}}"
   labels:
     app: verdaccio-service
 spec:
@@ -96,7 +106,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: verdaccio-ingress
-  namespace: yahyeapps
+  namespace: "{{NAMESPACE}}"
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
@@ -108,10 +118,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - registry.yahyasimple.com
+        - "{{HOSTNAME}}"
       secretName: verdaccio-cert-tls
   rules:
-    - host: "registry.yahyasimple.com"
+    - host: "{{HOSTNAME}}"
       http:
         paths:
           - path: /

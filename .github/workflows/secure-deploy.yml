@@ -290,7 +290,11 @@ jobs:
         env:
           IMAGE: ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}          
         run: | 
-          sed -i "s|{{IMAGE}}|$IMAGE|g" deployments/deployments.yml
+          ## replace "{{HOSTNAME}}" WITH ${{ vars.HOSTNAME }} in deployments.yml
+          sed -i "s|{{HOSTNAME}}|${{ vars.HOSTNAME }}|g" deployments.yml
+          ## replace "{{NAMESPACE}}" WITH ${{ vars.NAMESPACE }} in deployments.yml
+          sed -i "s|{{NAMESPACE}}|${{ vars.NAMESPACE }}|g" deployments.yml
+          sed -i "s|{{IMAGE}}|$IMAGE|g" deployments.yml
           
       - name: Configure SSH
         run: |
@@ -329,12 +333,12 @@ jobs:
 
       - name: Copy manifest to server
         run: |
-          scp deployments/deployments.yml deploy-server:/tmp/deployment.yml
+          scp deployments.yml deploy-server:/tmp/deployment.yml
 
       - name: Deploy
         # create secretes using kubctl cli 
         env:
-          PORT: ${{ secrets.PORT }}
+          PORT: ${{ vars.PORT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
           S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
