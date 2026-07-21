@@ -363,13 +363,27 @@ jobs:
           sudo apt update
           sudo apt install -y cloudflared
 
+      - name: Download app_info artifact
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: app_info
+          path: ./artifacts
+
       - name: Create deployment manifest
         run: |
           python3 -m pip install pyyaml -q
+          if [ ! -f "./artifacts/app_info.json" ]; then
+            echo "❌ app_info artifact missing"
+            ls -la ./artifacts || true
+            exit 1
+          fi
+
+          export APP_INFO="$(cat ./artifacts/app_info.json)"
+
           python3 .github/create-kubernets-deployemen.py
         env:
           DEPLOYMENT_TEMPLATE: ${{ github.workspace }}/deployment.template.yml
-          APP_INFO: ${{ needs.psv.outputs.app_info }}
           DEPLOY_DIR: ${{ github.workspace }}/deployments
 
       - name: Configure SSH
