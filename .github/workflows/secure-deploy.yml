@@ -334,28 +334,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Validate Docker image reference inputs
-        env:
-          DOCKER_REPO: ${{ secrets.DOCKER_REPO }}
-          APP_NAME: ${{ vars.APP_NAME }}
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          if [ -z "$DOCKER_REPO" ] || [ -z "$APP_NAME" ]; then
-            echo "❌ DOCKER_REPO and APP_NAME must both be set."
-            exit 1
-          fi
-
-          # Docker image references must include a repository path, not just a registry.
-          if [[ "$DOCKER_REPO" != */* ]]; then
-            echo "❌ DOCKER_REPO must include a repository path, for example 'owner/repo' or 'docker.io/owner/repo'."
-            exit 1
-          fi
-
-          echo "✅ DOCKER_REPO is configured: $DOCKER_REPO"
-          echo "✅ APP_NAME is configured: $APP_NAME"
-          echo "✅ Example tags:"
-          echo "  ${DOCKER_REPO}:${APP_NAME}-${GITHUB_SHA}"
-          echo "  ${DOCKER_REPO}:${APP_NAME}-latest"
 
       - name: Build & Push
         uses: docker/build-push-action@v5
@@ -363,8 +341,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}
-            ${{ secrets.DOCKER_REPO }}:${{ vars.APP_NAME }}-latest
+            ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}
+            ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-latest
 
   deploy:
     runs-on: ubuntu-latest
