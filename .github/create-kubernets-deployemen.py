@@ -84,7 +84,11 @@ def inject_secrets(docs, app_info):
         }
         docs.append(secret_doc)
 
-    string_data = secret_doc.setdefault('stringData', {})
+    string_data = secret_doc.get('stringData')
+    if string_data is None:
+        string_data = {}
+        secret_doc['stringData'] = string_data
+
     count = 0
     for s in secrets:
         name = s.get('name', '').strip()
