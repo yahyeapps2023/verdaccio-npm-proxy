@@ -411,7 +411,7 @@ jobs:
 
       - name: Copy manifest to server
         run: |
-          scp deployments/deployment.yml deploy-server:/tmp/deployment.yml
+          scp deployments/deployments.yml deploy-server:/tmp/deployment.yml
 
       - name: Deploy
         run: |
