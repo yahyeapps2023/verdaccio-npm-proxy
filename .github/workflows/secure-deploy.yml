@@ -356,5 +356,13 @@ jobs:
             --from-literal=R2_ENDPOINT=$R2_ENDPOINT \
             --dry-run=client -o yaml | kubectl apply -f -
              
+            # create docker registry secret if not exists
+          kubectl create secret docker-registry my-dockerhub-secret \
+            --docker-server=https://index.docker.io/v1/ \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+           echo ${{ secrets.DOCKERHUB_TOKEN }} > ~/dockerBut
+           
             kubectl apply -f /tmp/deployment.yml
           EOF
