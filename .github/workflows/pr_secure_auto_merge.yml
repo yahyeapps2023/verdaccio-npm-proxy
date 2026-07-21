@@ -15,8 +15,8 @@ env:
 
 jobs:
   # 4️⃣ Snyk Security Scan
-
-
+ 
+ 
     # 4️⃣ Snyk Security Scan
   snyk-scan:
     runs-on: ubuntu-latest
@@ -141,7 +141,7 @@ jobs:
           else
             echo "✅ No vulnerabilities"
           fi
-  
+
   # 5️⃣ CodeQL
   # ----------------------------
   codeql:
@@ -239,7 +239,7 @@ jobs:
          yarn install
          yarn build
 
-   
+         
 
   automerge:
     runs-on: ubuntu-latest
