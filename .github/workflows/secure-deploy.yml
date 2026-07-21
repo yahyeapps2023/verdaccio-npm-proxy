@@ -186,7 +186,7 @@ jobs:
           sudo mv osv-scanner /usr/local/bin/
 
       - name: Run OSV Scanner
-        run: osv-scanner --recursive ./ --format json --output osv-results.json
+        run: osv-scanner --recursive ./ --format json --output osv-results.json || true
 
       - name: Fail if vulnerabilities found
         run: |
