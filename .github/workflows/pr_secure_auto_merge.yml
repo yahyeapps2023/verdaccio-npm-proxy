@@ -70,11 +70,13 @@ jobs:
          corepack prepare yarn@4.9.2 --activate
          yarn install
          
+     
       - name: Run Socket Scan
         env:
           SOCKET_API_KEY: ${{ secrets.SOCKET_API_KEY }}
-        run: socket scan report --api-key="$SOCKET_API_KEY" --fail-on=policy
-
+        run: |
+          export SOCKET_API_KEY
+          socket ci
   # ----------------------------
   # 2️⃣ OSV Security Scan
   # ----------------------------
