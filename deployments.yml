@@ -49,7 +49,7 @@ spec:
           image: "{{IMAGE}}"
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 4000
+            - containerPort: 4873
               name: http
           env:
             - name: R2_BUCKET
@@ -94,7 +94,7 @@ spec:
   type: ClusterIP
   ports:
     - port: 80
-      targetPort: 4000
+      targetPort: 4873
       protocol: TCP
       name: http
   selector:
@@ -131,3 +131,25 @@ spec:
                 name: verdaccio-service
                 port:
                   number: 80
+
+
+---
+# GlobalNetworkPolicy
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-verdaccio-internet
+spec:
+  selector: app == "verdaccio-deployment"
+
+  namespaceSelector: kubernetes.io/metadata.name == "yahyeapps"
+
+  types:
+    - Egress
+
+  egress:
+    - action: Allow
+      destination:
+        nets:
+          - 0.0.0.0/0
+ 
