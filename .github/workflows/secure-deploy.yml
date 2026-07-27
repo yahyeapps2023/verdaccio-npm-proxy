@@ -246,7 +246,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20 # Maximum running time for this job
-    needs: [codeql]
+    needs: [build_test]
     steps:
       - uses: actions/checkout@v4
       # download
@@ -349,5 +349,17 @@ jobs:
             --docker-username="${{ secrets.DOCKERHUB_USERNAME }}" \
             --docker-password="${{ secrets.DOCKERHUB_TOKEN }}" \
             --dry-run=client -o yaml | kubectl apply -f -
+
+          # Safely create or update the application secrets
+          kubectl create secret generic verdaccio-secrets \
+            --namespace=${{ vars.NAMESPACE }} \
+            --from-literal=R2_BUCKET="${{ secrets.R2_BUCKET }}" \
+            --from-literal=S3_SECRET_ACCESS_KEY="${{ secrets.S3_SECRET_ACCESS_KEY }}" \
+            --from-literal=S3_ACCESS_KEY_ID="${{ secrets.S3_ACCESS_KEY_ID }}" \
+            --from-literal=R2_ENDPOINT="${{ secrets.R2_ENDPOINT }}" \
+            --from-literal=PORT="${{ vars.PORT }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          # Apply the deployment manifest
+
             kubectl apply -f /tmp/deployment.yml 
           EOF

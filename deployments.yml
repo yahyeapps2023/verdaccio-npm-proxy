@@ -55,27 +55,27 @@ spec:
             - name: R2_BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: webhook-secrets
+                  name: verdaccio-secrets
                   key: R2_BUCKET
             - name: S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: webhook-secrets
+                  name: verdaccio-secrets
                   key: S3_SECRET_ACCESS_KEY
             - name: S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: webhook-secrets
+                  name: verdaccio-secrets
                   key: S3_ACCESS_KEY_ID
             - name: R2_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: webhook-secrets
+                  name: verdaccio-secrets
                   key: R2_ENDPOINT
             - name: PORT
               valueFrom:
                 secretKeyRef:
-                  name: webhook-secrets
+                  name: verdaccio-secrets
                   key: PORT
       
       imagePullSecrets:
