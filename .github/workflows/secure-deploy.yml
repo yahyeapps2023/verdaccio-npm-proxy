@@ -28,6 +28,22 @@ jobs:
           node-version: "22"
 
  
+   # upload s3 info to artifact for later use in deploy job
+      # create a file with the S3 info
+      - name: Create S3 info file
+        run: |
+          echo "R2_BUCKET=${{ secrets.R2_BUCKET }}" > s3-info.txt
+          echo "R2_ENDPOINT=${{ secrets.R2_ENDPOINT }}" >> s3-info.txt
+          echo "S3_ACCESS_KEY_ID_B=${{ secrets.S3_ACCESS_KEY_ID_B }}" >> s3-info.txt
+          echo "S3_SECRET_ACCESS_KEY_B=${{ secrets.S3_SECRET_ACCESS_KEY_B }}" >> s3-info.txt
+  
+      - name: Upload S3 info artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3-info
+          path: s3-info.txt
+
+ 
       - name: Install dependencies
         run: |
          corepack enable
@@ -360,18 +376,6 @@ jobs:
             --from-literal=PORT="${{ vars.PORT }}" \
             --dry-run=client -o yaml | kubectl apply -f -
           # Apply the deployment manifest
-
-
-               AWS_ACCESS_KEY_ID: 
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
-   
-            # write to s3 info file 
-              cat <<EOT > /tmp/deployment-info.txt
-            Deployment Info:
-            - S3_ACCESS_KEY_ID_B : ${{ secrets.S3_ACCESS_KEY_ID_B }}
-            - S3_SECRET_ACCESS_KEY_B : ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
-            EOT
-          
-
+ 
             kubectl apply -f /tmp/deployment.yml 
           EOF
