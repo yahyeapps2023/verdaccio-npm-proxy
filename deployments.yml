@@ -79,8 +79,8 @@ spec:
                   key: PORT
       
       imagePullSecrets:
-        - name: my-dockerhub-secret
-
+        - name: dockerhub-secret
+      
 ---
 # Service
 apiVersion: v1
