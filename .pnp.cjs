@@ -4399,7 +4399,7 @@ const RAW_RUNTIME_STATE =
           ["@verdaccio/config", "npm:8.0.0-next-8.29"],\
           ["@verdaccio/core", "npm:8.0.0-next-8.29"],\
           ["debug", "virtual:3d605855b6d3d7eafd6eb5da331a216b7cc7ce7f73ae41f045460c895430bc3047336a53df4f4b3df05785b1b909917bd50bab97736ed695443f6fb65c923513#npm:4.4.3"],\
-          ["js-yaml", "npm:4.3.0"],\
+          ["js-yaml", "npm:5.2.2"],\
           ["lodash", "npm:4.18.1"]\
         ],\
         "linkType": "HARD"\
@@ -4410,7 +4410,7 @@ const RAW_RUNTIME_STATE =
           ["@verdaccio/config", "npm:8.2.0"],\
           ["@verdaccio/core", "npm:8.2.0"],\
           ["debug", "virtual:3d605855b6d3d7eafd6eb5da331a216b7cc7ce7f73ae41f045460c895430bc3047336a53df4f4b3df05785b1b909917bd50bab97736ed695443f6fb65c923513#npm:4.4.3"],\
-          ["js-yaml", "npm:4.3.0"],\
+          ["js-yaml", "npm:5.2.2"],\
           ["lodash", "npm:4.18.1"]\
         ],\
         "linkType": "HARD"\
@@ -9426,11 +9426,11 @@ const RAW_RUNTIME_STATE =
       }]\
     ]],\
     ["js-yaml", [\
-      ["npm:4.3.0", {\
-        "packageLocation": "../../.yarn/berry/cache/js-yaml-npm-4.3.0-1586601382-10c0.zip/node_modules/js-yaml/",\
+      ["npm:5.2.2", {\
+        "packageLocation": "../../.yarn/berry/cache/js-yaml-npm-5.2.2-dde534df9f-10c0.zip/node_modules/js-yaml/",\
         "packageDependencies": [\
           ["argparse", "npm:2.0.1"],\
-          ["js-yaml", "npm:4.3.0"]\
+          ["js-yaml", "npm:5.2.2"]\
         ],\
         "linkType": "HARD"\
       }]\
