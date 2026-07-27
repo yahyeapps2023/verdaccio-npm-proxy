@@ -361,5 +361,17 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
           # Apply the deployment manifest
 
+
+               AWS_ACCESS_KEY_ID: 
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
+   
+            # write to s3 info file 
+              cat <<EOT > /tmp/deployment-info.txt
+            Deployment Info:
+            - S3_ACCESS_KEY_ID_B : ${{ secrets.S3_ACCESS_KEY_ID_B }}
+            - S3_SECRET_ACCESS_KEY_B : ${{ secrets.S3_SECRET_ACCESS_KEY_B }}
+            EOT
+          
+
             kubectl apply -f /tmp/deployment.yml 
           EOF
