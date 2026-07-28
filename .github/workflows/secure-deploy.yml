@@ -23,9 +23,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
+          cache: 'npm' # 👈 Automatically caches ~/.npm global cache folder
 
   
       - name: Install dependencies
@@ -66,9 +68,11 @@ jobs:
     timeout-minutes: 20 # Maximum running time for this job
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
+          cache: 'npm' # 👈 Automatically caches ~/.npm global cache folder
 
       - name: Install Socket
         run: |
@@ -94,6 +98,11 @@ jobs:
     needs: [snyk-scan, socket-scan]
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm' # 👈 Automatically caches ~/.npm global cache folder
 
       - name: Install dependencies
         run: |
@@ -150,6 +159,11 @@ jobs:
     needs: [osv-security-scan]
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm' # 👈 Automatically caches ~/.npm global cache folder
 
  
       - name: Install dependencies
@@ -228,9 +242,12 @@ jobs:
     needs: [osv-security-scan, codeql]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
+          cache: 'npm' # 👈 Automatically caches ~/.npm global cache folder
+
  
       - name: Install dependencies and build
         run: |
