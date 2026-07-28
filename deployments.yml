@@ -76,8 +76,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: verdaccio-secrets
-                  key: PORT
-      
+                  key: PORT    
+            - name: SECRET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: verdaccio-secrets
+                  key: SECRET_TOKEN
       imagePullSecrets:
         - name: dockerhub-secret
       
