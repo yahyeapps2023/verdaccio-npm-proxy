@@ -3,7 +3,7 @@
 # ------------------------------
 
 storage: /verdaccio/storage
-
+secret: SECRET_TOKEN      
 
 store:
   aws-s3-storage:
@@ -36,6 +36,7 @@ packages:
 
   '**':
     access: $authenticated
+    publish: $authenticated            
     proxy: npmjs
 
     
