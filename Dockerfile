@@ -1,8 +1,7 @@
 # ------------------------------
-# Verdaccio v6 multi-stage Dockerfile (with AWS S3 / Cloudflare R2 plugin)
+# Verdaccio v6 multi-stage Dockerfile
 # - Builds Verdaccio tarball in builder stage
-# - Installs verdaccio + aws-s3-storage plugin
-# - Compatible with Railway (no VOLUME instruction)
+# - Uses local filesystem (R2 mounted via rclone on host)
 # ------------------------------
 
 FROM --platform=${BUILDPLATFORM:-linux/amd64} node:22.22.0-alpine AS builder
@@ -27,7 +26,7 @@ RUN apk add --no-cache \
     python3 \
     libc6-compat
 
-# Enable Corepack and activate Yarn 4 (required by Verdaccio repo)
+# Enable Corepack and activate Yarn 4
 RUN corepack enable && corepack prepare yarn@4.9.2 --activate
 
 WORKDIR /opt/verdaccio-build
@@ -41,11 +40,9 @@ RUN yarn config set npmRegistryServer $VERDACCIO_BUILD_REGISTRY && \
     yarn build && \
     yarn pack --out verdaccio.tgz && \
     mkdir -p /opt/tarball && \
-    mv /opt/verdaccio-build/verdaccio.tgz /opt/tarball/
+    mv verdaccio.tgz /opt/tarball/
 
-# clean builder workspace
 RUN rm -rf /opt/verdaccio-build
-
 
 # ------------------------------
 # Runtime image
@@ -54,9 +51,6 @@ RUN rm -rf /opt/verdaccio-build
 FROM node:22.22.0-alpine
 
 LABEL maintainer="https://github.com/verdaccio/verdaccio"
-
-ARG VERDACCIO_AWS_S3_VERSION=11.0.0-6-next.10
-ENV VERDACCIO_AWS_S3_VERSION=${VERDACCIO_AWS_S3_VERSION}
 
 ENV VERDACCIO_APPDIR=/opt/verdaccio \
     VERDACCIO_USER_NAME=verdaccio \
@@ -70,38 +64,37 @@ ENV PATH=$VERDACCIO_APPDIR/docker-bin:$PATH \
 
 WORKDIR $VERDACCIO_APPDIR
 
-RUN apk --no-cache add \
+RUN apk add --no-cache \
     openssl \
     dumb-init
 
-# create directories
+# Create directories (will be replaced by Kubernetes mount)
 RUN mkdir -p \
     /verdaccio/storage \
-    /verdaccio/plugins \
     /verdaccio/conf
 
-# copy verdaccio build
+# Copy Verdaccio package
 COPY --from=builder /opt/tarball/verdaccio.tgz $VERDACCIO_APPDIR/verdaccio.tgz
 
 USER root
 
-# install verdaccio + plugin
+# Install Verdaccio
 RUN npm install -g $VERDACCIO_APPDIR/verdaccio.tgz \
-    && npm install -g verdaccio-aws-s3-storage@${VERDACCIO_AWS_S3_VERSION} || true \
     && cp /usr/local/lib/node_modules/verdaccio/node_modules/@verdaccio/config/build/conf/docker.yaml /verdaccio/conf/config.yaml \
     && npm cache clean --force \
-    && rm -rf .npm/ \
+    && rm -rf .npm \
     && rm $VERDACCIO_APPDIR/verdaccio.tgz
 
-# copy custom config if provided
+# Copy your custom configuration
 COPY custom-config.yml /verdaccio/conf/config.yaml
 
-# add docker helper scripts
+# Helper scripts
 ADD docker-bin $VERDACCIO_APPDIR/docker-bin
 
 RUN chmod +x $VERDACCIO_APPDIR/docker-bin/* \
     && chmod +x /usr/local/lib/node_modules/verdaccio/bin/verdaccio
-# create non-root user
+
+# Create non-root user
 RUN adduser \
     -u $VERDACCIO_USER_UID \
     -S \
@@ -111,23 +104,18 @@ RUN adduser \
     -s /sbin/nologin \
     $VERDACCIO_USER_NAME
 
-# setup permissions
-RUN mkdir -p /verdaccio/storage /verdaccio/conf \
-    && touch /verdaccio/conf/htpasswd \
+# Permissions
+RUN touch /verdaccio/conf/htpasswd \
     && chown -R $VERDACCIO_USER_UID:root \
-        /verdaccio/storage \
-        /verdaccio/conf \
+        /verdaccio \
         /usr/local/lib/node_modules/verdaccio \
-        /usr/local/lib/node_modules/verdaccio-aws-s3-storage 2>/dev/null || true \
-    && chmod -R g=u /verdaccio/storage /verdaccio/conf /etc/passwd \
+    && chmod -R g=u /verdaccio /etc/passwd \
     && chmod 660 /verdaccio/conf/htpasswd
 
 USER $VERDACCIO_USER_UID
 
- 
 EXPOSE $VERDACCIO_PORT
 
 ENTRYPOINT ["dumb-init", "--"]
 
 CMD ["verdaccio", "--config", "/verdaccio/conf/config.yaml", "--listen", "0.0.0.0:4873"]
- 
