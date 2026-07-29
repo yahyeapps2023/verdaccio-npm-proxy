@@ -26,7 +26,6 @@ spec:
 
  
 ---
-# Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,56 +33,55 @@ metadata:
   namespace: "{{NAMESPACE}}"
   labels:
     app: verdaccio-deployment
+
 spec:
   replicas: 1
+
   selector:
     matchLabels:
       app: verdaccio-deployment
+
   template:
     metadata:
       labels:
         app: verdaccio-deployment
+
     spec:
       containers:
-        - name: webhook
+        - name: verdaccio
           image: "{{IMAGE}}"
           imagePullPolicy: IfNotPresent
+
           ports:
             - containerPort: 4873
               name: http
+
           env:
-            - name: R2_BUCKET
-              valueFrom:
-                secretKeyRef:
-                  name: verdaccio-secrets
-                  key: R2_BUCKET
-            - name: S3_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: verdaccio-secrets
-                  key: S3_SECRET_ACCESS_KEY
-            - name: S3_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: verdaccio-secrets
-                  key: S3_ACCESS_KEY_ID
-            - name: R2_ENDPOINT
-              valueFrom:
-                secretKeyRef:
-                  name: verdaccio-secrets
-                  key: R2_ENDPOINT
             - name: PORT
               valueFrom:
                 secretKeyRef:
                   name: verdaccio-secrets
-                  key: PORT    
+                  key: PORT
+
             - name: SECRET_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: verdaccio-secrets
                   key: SECRET_TOKEN
+
+          volumeMounts:
+            - name: verdaccio-r2
+              mountPath: /verdaccio
+
+      volumes:
+        - name: verdaccio-r2
+          hostPath:
+            path: /mnt/r2/verdaccio
+            type: Directory
+
       imagePullSecrets:
         - name: dockerhub-secret
+        
       
 ---
 # Service
