@@ -349,8 +349,9 @@ jobs:
 
       - name: Copy manifest to server
         run: |
+          scp setup_Rclone.sh deploy-server:/tmp/setup_Rclone.sh
           scp deployments.yml deploy-server:/tmp/deployment.yml
-
+          
       - name: Deploy
         run: |
           ssh \
