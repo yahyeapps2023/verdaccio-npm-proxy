@@ -351,57 +351,56 @@ jobs:
         run: |
           scp setup_Rclone.sh deploy-server:/tmp/setup_Rclone.sh
           scp deployments.yml deploy-server:/tmp/deployment.yml
-          
+      
       - name: Deploy
         run: |
           ssh \
             -o BatchMode=yes \
             -o ConnectTimeout=10 \
-            deploy-server <<'EOF'
-
+            deploy-server <<'SSH'
+      
           set -euo pipefail
-
-
-          mkdir -p ~/config/rclone/
-           tee ~/.config/rclone/verdaccio.env >/dev/null <<'EOF'
-          R2_ACCOUNT_ID=${{secrets.R2_ACCOUNT_ID_B}}
-          S3_ACCESS_KEY_ID=${{secrets.S3_ACCESS_KEY_ID_B}}
-          S3_SECRET_ACCESS_KEY=${{secrets.S3_SECRET_ACCESS_KEY_B}}
-          EOF
-           
+      
+          mkdir -p ~/.config/rclone
+      
+          cat > ~/.config/rclone/verdaccio.env <<VERDACCIO_ENV
+          R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID_B }}
+          S3_ACCESS_KEY_ID=${{ secrets.S3_ACCESS_KEY_ID_B }}
+          S3_SECRET_ACCESS_KEY=${{ secrets.S3_SECRET_ACCESS_KEY_B }}
+          VERDACCIO_ENV
+      
           chmod 600 ~/.config/rclone/verdaccio.env
-
-           tee ~/.config/rclone/rclone.conf >/dev/null <<'EOF'
-                [r2]
-                type = s3
-                provider = Cloudflare
-                endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
-                access_key_id = ${S3_ACCESS_KEY_ID}
-                secret_access_key = ${S3_SECRET_ACCESS_KEY}
-                acl = private
-                no_check_bucket = true
-                EOF
-
-
-          
-          chmod +x  /tmp/setup_Rclone.sh
+      
+          cat > ~/.config/rclone/rclone.conf <<'RCLONE_CONF'
+          [r2]
+          type = s3
+          provider = Cloudflare
+          endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+          access_key_id = ${S3_ACCESS_KEY_ID}
+          secret_access_key = ${S3_SECRET_ACCESS_KEY}
+          acl = private
+          no_check_bucket = true
+          RCLONE_CONF
+      
+          chmod +x /tmp/setup_Rclone.sh
+      
           echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S bash \
-            /tmp/setup_Rclone.sh --username="${{ vars.SSH_USER }}"
-            
-          
-            # create the namescpace if not exists use dry run 
-          kubectl create namespace ${{vars.NAMESPACE}} --dry-run=client -o yaml | kubectl apply -f -
-          # Create or update the Kubernetes secret
-          
-          # Safely create or update the image pull secret
+            /tmp/setup_Rclone.sh \
+            --username="${{ vars.SSH_USER }}"
+      
+          # Create namespace if it does not exist
+          kubectl create namespace ${{ vars.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+      
+          # Docker Hub pull secret
           kubectl create secret docker-registry dockerhub-secret \
             --namespace=${{ vars.NAMESPACE }} \
             --docker-server=${{ vars.DOCKERHUB_SERVER }} \
             --docker-username="${{ secrets.DOCKERHUB_USERNAME }}" \
             --docker-password="${{ secrets.DOCKERHUB_TOKEN }}" \
             --dry-run=client -o yaml | kubectl apply -f -
-
-          # Safely create or update the application secrets
+      
+          # Application secrets
           kubectl create secret generic verdaccio-secrets \
             --namespace=${{ vars.NAMESPACE }} \
             --from-literal=R2_BUCKET="${{ secrets.R2_BUCKET }}" \
@@ -411,7 +410,11 @@ jobs:
             --from-literal=R2_ENDPOINT="${{ secrets.R2_ENDPOINT }}" \
             --from-literal=PORT="${{ vars.PORT }}" \
             --dry-run=client -o yaml | kubectl apply -f -
-          # Apply the deployment manifest
- 
-            kubectl apply -f /tmp/deployment.yml 
-          EOF
+      
+          # Deploy application
+          kubectl apply -f /tmp/deployment.yml
+      
+          SSH
+      
+      
+                  
