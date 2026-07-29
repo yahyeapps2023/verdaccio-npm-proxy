@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # setup cloudflare r2
+ USERNAME="$1"
 
  apt update
  apt install -y unzip
