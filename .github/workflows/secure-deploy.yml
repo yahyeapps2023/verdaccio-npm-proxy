@@ -369,7 +369,7 @@ jobs:
           S3_SECRET_ACCESS_KEY=${{secrets.S3_SECRET_ACCESS_KEY_B}}
           EOF
            
-          chmod 600 /.config/rclone/verdaccio.env
+          chmod 600 ~/.config/rclone/verdaccio.env
 
            tee ~/.config/rclone/rclone.conf >/dev/null <<'EOF'
                 [r2]
