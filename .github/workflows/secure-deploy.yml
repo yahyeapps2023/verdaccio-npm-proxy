@@ -363,7 +363,7 @@ jobs:
 
 
           mkdir -p ~/config/rclone/
-          sudo tee ~/.config/rclone/verdaccio.env >/dev/null <<'EOF'
+           tee ~/.config/rclone/verdaccio.env >/dev/null <<'EOF'
           R2_ACCOUNT_ID=${{secrets.R2_ACCOUNT_ID_B}}
           S3_ACCESS_KEY_ID=${{secrets.S3_ACCESS_KEY_ID_B}}
           S3_SECRET_ACCESS_KEY=${{secrets.S3_SECRET_ACCESS_KEY_B}}
