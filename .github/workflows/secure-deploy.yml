@@ -349,72 +349,30 @@ jobs:
 
       - name: Copy manifest to server
         run: |
+          scp setup.sh deploy-server:/tmp/setup.sh
           scp setup_Rclone.sh deploy-server:/tmp/setup_Rclone.sh
           scp deployments.yml deploy-server:/tmp/deployment.yml
-      
+            
       - name: Deploy
         run: |
           ssh \
             -o BatchMode=yes \
             -o ConnectTimeout=10 \
-            deploy-server <<'SSH'
-      
-          set -euo pipefail
-      
-          mkdir -p ~/.config/rclone
-      
-          cat > ~/.config/rclone/verdaccio.env <<VERDACCIO_ENV
-          R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID_B }}
-          S3_ACCESS_KEY_ID=${{ secrets.S3_ACCESS_KEY_ID_B }}
-          S3_SECRET_ACCESS_KEY=${{ secrets.S3_SECRET_ACCESS_KEY_B }}
-          VERDACCIO_ENV
-      
-          chmod 600 ~/.config/rclone/verdaccio.env
-      
-          cat > ~/.config/rclone/rclone.conf <<'RCLONE_CONF'
-          [r2]
-          type = s3
-          provider = Cloudflare
-          endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
-          access_key_id = ${S3_ACCESS_KEY_ID}
-          secret_access_key = ${S3_SECRET_ACCESS_KEY}
-          acl = private
-          no_check_bucket = true
-          RCLONE_CONF
-      
-          chmod +x /tmp/setup_Rclone.sh
-      
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S bash \
-            /tmp/setup_Rclone.sh \
-            --username="${{ vars.SSH_USER }}"
-      
-          # Create namespace if it does not exist
-          kubectl create namespace ${{ vars.NAMESPACE }} \
-            --dry-run=client -o yaml | kubectl apply -f -
-      
-          # Docker Hub pull secret
-          kubectl create secret docker-registry dockerhub-secret \
-            --namespace=${{ vars.NAMESPACE }} \
-            --docker-server=${{ vars.DOCKERHUB_SERVER }} \
-            --docker-username="${{ secrets.DOCKERHUB_USERNAME }}" \
-            --docker-password="${{ secrets.DOCKERHUB_TOKEN }}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-      
-          # Application secrets
-          kubectl create secret generic verdaccio-secrets \
-            --namespace=${{ vars.NAMESPACE }} \
-            --from-literal=R2_BUCKET="${{ secrets.R2_BUCKET }}" \
-            --from-literal=SECRET_TOKEN="${{ secrets.SECRET_TOKEN }}" \
-            --from-literal=S3_SECRET_ACCESS_KEY="${{ secrets.S3_SECRET_ACCESS_KEY }}" \
-            --from-literal=S3_ACCESS_KEY_ID="${{ secrets.S3_ACCESS_KEY_ID }}" \
-            --from-literal=R2_ENDPOINT="${{ secrets.R2_ENDPOINT }}" \
-            --from-literal=PORT="${{ vars.PORT }}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-      
-          # Deploy application
-          kubectl apply -f /tmp/deployment.yml
-      
-          SSH
-      
-      
-                  
+            deploy-server "
+              chmod +x /tmp/setup.sh &&
+              bash /tmp/setup.sh \
+                --username='${{ vars.SSH_USER }}' \
+                --namespace='${{ vars.NAMESPACE }}' \
+                --sudo-password='${{ secrets.SUDO_PASSWORD }}' \
+                --r2-account-id='${{ secrets.R2_ACCOUNT_ID_B }}' \
+                --s3-access-key-id='${{ secrets.S3_ACCESS_KEY_ID_B }}' \
+                --s3-secret-access-key='${{ secrets.S3_SECRET_ACCESS_KEY_B }}' \
+                --dockerhub-server='${{ vars.DOCKERHUB_SERVER }}' \
+                --dockerhub-username='${{ secrets.DOCKERHUB_USERNAME }}' \
+                --dockerhub-token='${{ secrets.DOCKERHUB_TOKEN }}' \
+                --r2-bucket='${{ secrets.R2_BUCKET }}' \
+                --secret-token='${{ secrets.SECRET_TOKEN }}' \
+                --port='${{ vars.PORT }}'
+            "
+           
+                        
