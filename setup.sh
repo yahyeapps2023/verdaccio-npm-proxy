@@ -56,34 +56,6 @@ for arg in "$@"; do
     esac
 done
 
-mkdir -p ~/.config/rclone
-
-cat > ~/.config/rclone/verdaccio.env <<EOF
-R2_ACCOUNT_ID=$R2_ACCOUNT_ID
-S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
-S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
-EOF
-
-chmod 600 ~/.config/rclone/verdaccio.env
-
-cat > ~/.config/rclone/rclone.conf <<'EOF'
-[r2]
-type = s3
-provider = Cloudflare
-endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
-access_key_id = ${S3_ACCESS_KEY_ID}
-secret_access_key = ${S3_SECRET_ACCESS_KEY}
-acl = private
-no_check_bucket = true
-EOF
-
-chmod 600 ~/.config/rclone/rclone.conf
-
-chmod +x /tmp/setup_Rclone.sh
-
-echo "$SUDO_PASSWORD" | sudo -S bash \
-    /tmp/setup_Rclone.sh \
-    --username="$USERNAME"
 
 
  
