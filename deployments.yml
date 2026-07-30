@@ -24,7 +24,9 @@ spec:
   dnsNames:
     - "{{HOSTNAME}}"
 
- 
+
+
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -49,7 +51,7 @@ spec:
     spec:
       containers:
         - name: verdaccio
-          image: "{{IMAGE}}"
+          image: "{{MAGE}}"
           imagePullPolicy: IfNotPresent
 
           ports:
@@ -70,19 +72,27 @@ spec:
                   key: SECRET_TOKEN
 
           volumeMounts:
-            - name: verdaccio-r2
-              mountPath: /verdaccio
+            - name: verdaccio-storage
+              mountPath: /verdaccio/storage
+
+            - name: verdaccio-htpasswd
+              mountPath: /verdaccio/conf/htpasswd
 
       volumes:
-        - name: verdaccio-r2
+        - name: verdaccio-storage
           hostPath:
-            path: /mnt/r2/verdaccio
-            type: Directory
+            path: /mnt/r2/verdaccio/storage
+            type: DirectoryOrCreate
+
+        - name: verdaccio-htpasswd
+          hostPath:
+            path: /mnt/r2/verdaccio/conf/htpasswd
+            type: FileOrCreate
 
       imagePullSecrets:
         - name: dockerhub-secret
-        
-      
+
+ 
 ---
 # Service
 apiVersion: v1
