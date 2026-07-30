@@ -12,7 +12,7 @@
  echo "user_allow_other" | tee -a /etc/fuse.conf
 
 
-tee /etc/systemd/system/rclone-verdaccio.service >/dev/null <<'EOF'
+tee /etc/systemd/system/rclone-verdaccio.service >/dev/null <<EOF
 [Unit]
 Description=Cloudflare R2 Mount (Verdaccio)
 Documentation=https://rclone.org/
@@ -24,7 +24,7 @@ Type=simple
 User=$USERNAME
 Group=$USERNAME
 
-EnvironmentFile=/etc/rclone/verdaccio.env
+EnvironmentFile=/home/$USERNAME/.config/rclone/verdaccio.env
 
 ExecStart=/usr/bin/rclone mount \
     r2:verdaccio \
@@ -43,7 +43,6 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-
 
  systemctl daemon-reload
  
