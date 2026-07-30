@@ -51,7 +51,7 @@ spec:
     spec:
       containers:
         - name: verdaccio
-          image: "{{MAGE}}"
+          image: "{{IMAGE}}"
           imagePullPolicy: IfNotPresent
 
           ports:
