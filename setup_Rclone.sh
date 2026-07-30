@@ -52,14 +52,19 @@ EOF
  echo "✅ Server setup completed"
 
 sudo mkdir -p /mnt/r2/verdaccio/conf
+sudo mkdir -p /mnt/r2/verdaccio/storage
 
 if [ ! -f /mnt/r2/verdaccio/conf/htpasswd ]; then
   sudo touch /mnt/r2/verdaccio/conf/htpasswd
-  sudo chmod 660 /mnt/r2/verdaccio/conf/htpasswd
+  sudo chmod 777 /mnt/r2/verdaccio/conf/htpasswd
   echo "✅ Created /mnt/r2/verdaccio/conf/htpasswd"
 else
   echo "✅ /mnt/r2/verdaccio/conf/htpasswd already exists"
 fi
+ sudo chmod -R 777 /mnt/r2/verdaccio
+ sudo chmod -R 777 /mnt/r2/verdaccio/storage
+ sudo chmod -R 777 /mnt/r2/verdaccio/conf
 
+ 
 
 exit
