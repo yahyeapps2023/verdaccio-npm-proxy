@@ -15,8 +15,7 @@ env:
 
 jobs:
   # 4️⃣ Snyk Security Scan
- 
-     # 4️⃣ Snyk Security Scan
+    # 4️⃣ Snyk Security Scan
   snyk-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -27,8 +26,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm' # 👈 Automatically caches ~/.npm global cache folder
-
-  
+ 
       - name: Install dependencies
         run: |
          corepack enable
@@ -255,6 +253,7 @@ jobs:
          yarn install
          yarn build
 
+         
         
   automerge:
     runs-on: ubuntu-latest
