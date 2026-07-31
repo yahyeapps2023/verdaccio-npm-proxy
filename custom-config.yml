@@ -21,7 +21,7 @@ web:
  
 auth:
   htpasswd:
-    file: /verdaccio/conf/htpasswd
+    file: /verdaccio/conf/htpasswd-dir/htpasswd
     max_users: 1
 
 uplinks:
