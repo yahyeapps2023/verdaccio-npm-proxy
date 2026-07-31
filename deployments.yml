@@ -42,8 +42,6 @@ spec:
       storage: 1Mi
 
  
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,19 +63,8 @@ spec:
         app: verdaccio-deployment
 
     spec:
-      initContainers:
-        - name: create-htpasswd
-          image: busybox:1.36
-          command:
-            - sh
-            - -c
-            - |
-              mkdir -p /auth
-              touch /auth/htpasswd
-              chmod 660 /auth/htpasswd
-          volumeMounts:
-            - name: verdaccio-auth
-              mountPath: /auth
+      imagePullSecrets:
+        - name: dockerhub-secret
 
       containers:
         - name: webhook
@@ -120,19 +107,13 @@ spec:
                   key: PORT
 
           volumeMounts:
-            - name: verdaccio-auth
-              mountPath: /verdaccio/conf/htpasswd
-              subPath: htpasswd
-
-      imagePullSecrets:
-        - name: dockerhub-secret
+            - name: verdaccio-conf
+              mountPath: /verdaccio/conf
 
       volumes:
-        - name: verdaccio-auth
+        - name: verdaccio-conf
           persistentVolumeClaim:
             claimName: verdaccio-htpasswd-pvc
-
-
 ---
 # Service
 apiVersion: v1
