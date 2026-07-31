@@ -113,7 +113,7 @@ RUN adduser \
     $VERDACCIO_USER_NAME
 
 # setup permissions
-RUN mkdir -p /verdaccio/storage /verdaccio/conf /verdaccio/conf/htpasswd-dir \ 
+RUN mkdir -p /verdaccio/storage /verdaccio/conf /verdaccio/conf/htpasswd-dir \
     && touch /verdaccio/conf/htpasswd-dir/htpasswd \
     && chown -R $VERDACCIO_USER_UID:root \
         /verdaccio/storage \
@@ -121,8 +121,9 @@ RUN mkdir -p /verdaccio/storage /verdaccio/conf /verdaccio/conf/htpasswd-dir \
         /verdaccio/conf/htpasswd-dir \
         /usr/local/lib/node_modules/verdaccio \
         /usr/local/lib/node_modules/verdaccio-aws-s3-storage 2>/dev/null || true \
-    && chmod -R g=u /verdaccio/storage /verdaccio/conf /etc/passwd \
- 
+    && chmod -R g=u /verdaccio/storage /verdaccio/conf /etc/passwd
+
+USER $VERDACCIO_USER_UID
 USER $VERDACCIO_USER_UID
 
  
