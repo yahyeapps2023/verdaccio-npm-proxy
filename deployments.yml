@@ -1,5 +1,5 @@
 # deployments template for fallback; contains placeholders {{NAMESPACE}}, {{HOSTNAME}}, {{IMAGE}}
-
+   
 ---
 # Namespace
 apiVersion: v1
