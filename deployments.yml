@@ -81,7 +81,7 @@ spec:
 
       containers:
         - name: webhook
-          image: "{{IMAGE}}}"
+          image: "{{IMAGE}}"
           imagePullPolicy: IfNotPresent
 
           ports:
