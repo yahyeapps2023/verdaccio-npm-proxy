@@ -26,6 +26,20 @@ spec:
 
 
 
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: verdaccio-htpasswd-pvc
+  namespace: "{{NAMESPACE}}"
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  resources:
+    requests:
+      storage: 1Mi
 
 ---
 apiVersion: apps/v1
@@ -50,7 +64,7 @@ spec:
 
     spec:
       containers:
-        - name: verdaccio
+        - name: webhook
           image: "{{IMAGE}}"
           imagePullPolicy: IfNotPresent
 
@@ -59,39 +73,48 @@ spec:
               name: http
 
           env:
+            - name: R2_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: verdaccio-secrets
+                  key: R2_BUCKET
+
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: verdaccio-secrets
+                  key: S3_SECRET_ACCESS_KEY
+
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: verdaccio-secrets
+                  key: S3_ACCESS_KEY_ID
+
+            - name: R2_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: verdaccio-secrets
+                  key: R2_ENDPOINT
+
             - name: PORT
               valueFrom:
                 secretKeyRef:
                   name: verdaccio-secrets
                   key: PORT
 
-            - name: SECRET_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: verdaccio-secrets
-                  key: SECRET_TOKEN
-
           volumeMounts:
-            - name: verdaccio-storage
-              mountPath: /verdaccio/storage
-
             - name: verdaccio-htpasswd
               mountPath: /verdaccio/conf/htpasswd
-
-      volumes:
-        - name: verdaccio-storage
-          hostPath:
-            path: /mnt/r2/verdaccio/storage
-            type: DirectoryOrCreate
-
-        - name: verdaccio-htpasswd
-          hostPath:
-            path: /mnt/r2/verdaccio/conf/htpasswd
-            type: FileOrCreate
+              subPath: htpasswd
 
       imagePullSecrets:
         - name: dockerhub-secret
 
+      volumes:
+        - name: verdaccio-htpasswd
+          persistentVolumeClaim:
+            claimName: verdaccio-htpasswd-pvc
  
 ---
 # Service
