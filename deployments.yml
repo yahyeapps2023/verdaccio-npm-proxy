@@ -76,6 +76,12 @@ spec:
               name: http
 
           env:
+            - name: SECRET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: verdaccio-secrets
+                  key: SECRET_TOKEN
+                  
             - name: R2_BUCKET
               valueFrom:
                 secretKeyRef:
