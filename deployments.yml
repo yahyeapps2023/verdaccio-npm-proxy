@@ -41,8 +41,7 @@ spec:
     requests:
       storage: 1Mi
 
- 
-apiVersion: apps/v1
+ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: verdaccio-deployment
@@ -68,7 +67,7 @@ spec:
 
       containers:
         - name: webhook
-          image: "{{IMAGE}}"
+          image: {{IMAGE}}
           imagePullPolicy: IfNotPresent
 
           ports:
@@ -108,7 +107,7 @@ spec:
 
           volumeMounts:
             - name: verdaccio-conf
-              mountPath: /verdaccio/conf
+              mountPath: /verdaccio/conf/htpasswd-dir
 
       volumes:
         - name: verdaccio-conf
