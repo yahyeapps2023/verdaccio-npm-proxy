@@ -78,7 +78,8 @@ RUN apk --no-cache add \
 RUN mkdir -p \
     /verdaccio/storage \
     /verdaccio/plugins \
-    /verdaccio/conf
+    /verdaccio/conf \
+    /verdaccio/conf/htpasswd-dir
 
 # copy verdaccio build
 COPY --from=builder /opt/tarball/verdaccio.tgz $VERDACCIO_APPDIR/verdaccio.tgz
@@ -112,16 +113,16 @@ RUN adduser \
     $VERDACCIO_USER_NAME
 
 # setup permissions
-RUN mkdir -p /verdaccio/storage /verdaccio/conf \
-    && touch /verdaccio/conf/htpasswd \
+RUN mkdir -p /verdaccio/storage /verdaccio/conf /verdaccio/conf/htpasswd-dir \ 
+    && touch /verdaccio/conf/htpasswd-dir/htpasswd \
     && chown -R $VERDACCIO_USER_UID:root \
         /verdaccio/storage \
         /verdaccio/conf \
+        /verdaccio/conf/htpasswd-dir \
         /usr/local/lib/node_modules/verdaccio \
         /usr/local/lib/node_modules/verdaccio-aws-s3-storage 2>/dev/null || true \
     && chmod -R g=u /verdaccio/storage /verdaccio/conf /etc/passwd \
-    && chmod 660 /verdaccio/conf/htpasswd
-
+ 
 USER $VERDACCIO_USER_UID
 
  
