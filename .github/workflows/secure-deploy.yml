@@ -123,8 +123,8 @@ jobs:
                 --namespace='${{ vars.NAMESPACE }}' \
                 --sudo-password='${{ secrets.SUDO_PASSWORD }}' \
                 --r2-account-id='${{ secrets.R2_ACCOUNT_ID_B }}' \
-                --s3-access-key-id='${{ secrets.S3_ACCESS_KEY_ID_B }}' \
-                --s3-secret-access-key='${{ secrets.S3_SECRET_ACCESS_KEY_B }}' \
+                --s3-access-key-id='${{ secrets.S3_ACCESS_KEY_ID }}' \
+                --s3-secret-access-key='${{ secrets.S3_SECRET_ACCESS_KEY }}' \
                 --dockerhub-server='${{ vars.DOCKERHUB_SERVER }}' \
                 --dockerhub-username='${{ secrets.DOCKERHUB_USERNAME }}' \
                 --dockerhub-token='${{ secrets.DOCKERHUB_TOKEN }}' \
