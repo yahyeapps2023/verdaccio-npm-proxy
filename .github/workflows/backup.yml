@@ -17,26 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
  
-      - name: Create Docker secrets file
-        env:
-          DOCKER_REPO: ${{ vars.DOCKER_REPO }}
-          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKER_PAT_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          cat > secrets.env <<EOF
-          DOCKER_REPO=$DOCKER_REPO
-          DOCKERHUB_USERNAME=$DOCKER_USERNAME
-          DOCKERHUB_TOKEN=$DOCKER_PAT_TOKEN
-          EOF
-      
-      - name: Upload secrets.env
-        uses: actions/upload-artifact@v4
-        with:
-          name: backup-service-secrets
-          path: secrets.env
-          retention-days: 1
-          
-
+ 
 
       - name: Push backup to repository
         env:
