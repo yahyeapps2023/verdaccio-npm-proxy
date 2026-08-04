@@ -1,0 +1,145 @@
+name: shared-security
+
+on:
+  workflow_call:
+    inputs:
+      deploy:
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+
+jobs:
+
+  docker:
+    if: ${{ inputs.deploy }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # Maximum running time for this job
+    steps:
+      - uses: actions/checkout@v4
+      # download
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}
+            ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.deploy }}
+    needs: [docker]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+            | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
+            | sudo tee /etc/apt/sources.list.d/cloudflared.list
+
+          sudo apt update
+          sudo apt install -y cloudflared
+
+      - name: update image name and tag in deployment same as docker build and push
+        env:
+          IMAGE: ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}
+        run: |
+          ## replace "{{HOSTNAME}}" WITH ${{ vars.HOSTNAME }} in deployments.yml
+          sed -i "s|{{HOSTNAME}}|${{ vars.HOSTNAME }}|g" deployments.yml
+          ## replace "{{NAMESPACE}}" WITH ${{ vars.NAMESPACE }} in deployments.yml
+          sed -i "s|{{NAMESPACE}}|${{ vars.NAMESPACE }}|g" deployments.yml
+          sed -i "s|{{IMAGE}}|$IMAGE|g" deployments.yml
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          cat > ~/.ssh/config <<EOF
+          Host deploy-server
+            HostName ${{vars.SSH_HOST}}
+            User yahyeapps
+            port ${{vars.SSH_PORT}} 
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ProxyCommand cloudflared access ssh \
+              --hostname %h \
+              --service-token-id $CLOUDFLARE_SSH_ACCESS_CLIENT_ID \
+              --service-token-secret $CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET
+          EOF
+        env:
+          CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
+          CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+
+      - name: Test SSH connection
+        run: |
+          if ! ssh -o BatchMode=yes \
+              -o ConnectTimeout=10 \
+              deploy-server \
+              "echo Connected successfully"
+          then
+            echo "❌ SSH connection failed."
+            exit 1
+          fi
+
+      - name: Copy manifest to server
+        run: |
+          scp setup.sh deploy-server:/tmp/setup.sh
+          scp deployments.yml deploy-server:/tmp/deployment.yml
+
+      - name: Deploy
+        run: |
+          ssh \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            deploy-server "
+              chmod +x /tmp/setup.sh &&
+              bash /tmp/setup.sh \
+                --username='${{ vars.SSH_USER }}' \
+                --namespace='${{ vars.NAMESPACE }}' \
+                --sudo-password='${{ secrets.SUDO_PASSWORD }}' \
+                --r2-account-id='${{ secrets.R2_ACCOUNT_ID_B }}' \
+                --s3-access-key-id='${{ secrets.S3_ACCESS_KEY_ID }}' \
+                --s3-secret-access-key='${{ secrets.S3_SECRET_ACCESS_KEY }}' \
+                --dockerhub-server='${{ vars.DOCKERHUB_SERVER }}' \
+                --dockerhub-username='${{ secrets.DOCKERHUB_USERNAME }}' \
+                --dockerhub-token='${{ secrets.DOCKERHUB_TOKEN }}' \
+                --r2-bucket='${{ secrets.R2_BUCKET }}' \
+                --secret-token='${{ secrets.SECRET_TOKEN }}' \
+                --port='${{ vars.PORT }}'
+            "
+
+      - name: Trigger deployer-webhook  workflow
+        env:
+          PAT_TOKEN: ${{ secrets.SCANNER_PAT_TOKEN }}
+          DEPLOYER_WEBHOOK_DISPATCHE_PATH: ${{vars.DEPLOYER_WEBHOOK_DISPATCHE_PATH}}
+        run: |
+          curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $PAT_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            $DEPLOYER_WEBHOOK_DISPATCHE_PATH \
+            -d '{
+              "ref":"main"
+            }'
