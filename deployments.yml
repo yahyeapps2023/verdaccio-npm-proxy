@@ -63,6 +63,7 @@ spec:
         app: verdaccio-deployment
 
     spec:
+      automountServiceAccountToken: false # <--- Disables automatic token injection
       imagePullSecrets:
         - name: dockerhub-secret
 
