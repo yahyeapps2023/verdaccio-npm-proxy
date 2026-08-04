@@ -16,18 +16,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-
+ 
       - name: Create Docker secrets file
         env:
-          DOCKER_REPO: ${{ secrets.DOCKER_REPO }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PAT_TOKEN: ${{ secrets.DOCKER_PAT_TOKEN }}
+          DOCKER_REPO: ${{ vars.DOCKER_REPO }}
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PAT_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           cat > secrets.env <<EOF
           DOCKER_REPO=$DOCKER_REPO
-          DOCKER_USERNAME=$DOCKER_USERNAME
-          DOCKER_PAT_TOKEN=$DOCKER_PAT_TOKEN
+          DOCKERHUB_USERNAME=$DOCKER_USERNAME
+          DOCKERHUB_TOKEN=$DOCKER_PAT_TOKEN
           EOF
       
       - name: Upload secrets.env
