@@ -16,7 +16,7 @@ store:
 
 web:
   title: Verdaccio Cache Proxy
-  enable: false
+  enable: true
 
  
 auth:
