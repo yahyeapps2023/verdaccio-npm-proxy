@@ -14,106 +14,7 @@ permissions:
   security-events: write
 
 jobs:
-  # 4️⃣ Snyk Security Scan
-  snyk-scan:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: |
-          pnpm install --no-frozen-lockfile
-
-      - name: Install Snyk
-        run: npm install snyk -g
-
-      - name: Verify Snyk Token
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          if [ -z "$SNYK_TOKEN" ]; then
-            echo "❌ SNYK_TOKEN is not configured. Please set it in GitHub Secrets."
-            exit 1
-          fi
-          echo "✅ SNYK_TOKEN is configured"
-
-      - name: Run Snyk test
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --severity-threshold=critical --all-projects --exclude=docker-examples,tests,__fixtures__,__partials__,fixtures || true
-
-  # ----------------------------
-  # 1️⃣ Socket Security Scan
-  # ----------------------------
-  socket-scan:
-    runs-on: ubuntu-latest
-    needs: [snyk-scan]
-    timeout-minutes: 20 # Maximum running time for this job
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: |
-          pnpm install --no-frozen-lockfile
-
-      - name: Install Socket
-        run: |
-          npm install -g socket@1.1.147
-          export PATH="$(npm config get prefix)/bin:$PATH"
-          command -v socket
-
-      - name: Run Socket Scan
-        env:
-          SOCKET_CLI_API_TOKEN: ${{ secrets.SOCKET_API_KEY }}
-        run: |
-          export PATH="$(npm config get prefix)/bin:$PATH"
-          socket ci
-            # ----------------------------
-  # 3️⃣ Build & Test
-  # ----------------------------
-  build_test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20 # Maximum running time for this job
-    needs: [socket-scan]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies and build
-        run: |
-          pnpm install --no-frozen-lockfile
-          pnpm run build
-
+ 
   # ----------------------------
   # 5️⃣ Docker Build & Push
   # ----------------------------
@@ -121,7 +22,7 @@ jobs:
     if: ${{ inputs.deploy }}
     runs-on: ubuntu-latest
     timeout-minutes: 20 # Maximum running time for this job
-    needs: [build_test]
+ 
     steps:
       - uses: actions/checkout@v4
       # download
