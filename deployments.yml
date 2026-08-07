@@ -236,22 +236,3 @@ spec:
                   number: 80
 
 ---
-
-# Allow Verdaccio outbound Internet access
-apiVersion: crd.projectcalico.org/v1
-kind: GlobalNetworkPolicy
-metadata:
-  name: allow-verdaccio-internet
-
-spec:
-  selector: app == "verdaccio-deployment"
-  namespaceSelector: kubernetes.io/metadata.name == "{{NAMESPACE}}"
-
-  types:
-    - Egress
-
-  egress:
-    - action: Allow
-      destination:
-        nets:
-          - 0.0.0.0/0
