@@ -69,7 +69,7 @@ jobs:
           sed -i "s|{{HOSTNAME}}|${{ vars.HOSTNAME }}|g" verdacio-deployments.yml
           ## replace "{{NAMESPACE}}" WITH ${{ vars.NAMESPACE }} in verdacio-deployments.yml
           sed -i "s|{{NAMESPACE}}|${{ vars.NAMESPACE }}|g"  verdacio-deployments.yml
-          sed -i "s|{{IMAGE}}|$IMAGE|g" deployments.yml
+          sed -i "s|{{IMAGE}}|$IMAGE|g"   verdacio-deployments.yml
 
       - name: Configure SSH
         run: |
