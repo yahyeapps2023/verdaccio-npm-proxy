@@ -144,28 +144,13 @@ spec:
                 secretKeyRef:
                   name: verdaccio-secrets
                   key: PORT
-
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 10
-
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 5
-
-          resources:
-            requests:
-              cpu: "250m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
+           
+          requests:
+            cpu: 25m
+            memory: 80Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
 
           volumeMounts:
             - name: verdaccio-conf
