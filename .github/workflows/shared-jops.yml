@@ -65,10 +65,10 @@ jobs:
         env:
           IMAGE: ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}
         run: |
-          ## replace "{{HOSTNAME}}" WITH ${{ vars.HOSTNAME }} in deployments.yml
-          sed -i "s|{{HOSTNAME}}|${{ vars.HOSTNAME }}|g" deployments.yml
-          ## replace "{{NAMESPACE}}" WITH ${{ vars.NAMESPACE }} in deployments.yml
-          sed -i "s|{{NAMESPACE}}|${{ vars.NAMESPACE }}|g" deployments.yml
+          ## replace "{{HOSTNAME}}" WITH ${{ vars.HOSTNAME }} in verdacio-deployments.yml
+          sed -i "s|{{HOSTNAME}}|${{ vars.HOSTNAME }}|g" verdacio-deployments.yml
+          ## replace "{{NAMESPACE}}" WITH ${{ vars.NAMESPACE }} in verdacio-deployments.yml
+          sed -i "s|{{NAMESPACE}}|${{ vars.NAMESPACE }}|g"  verdacio-deployments.yml
           sed -i "s|{{IMAGE}}|$IMAGE|g" deployments.yml
 
       - name: Configure SSH
