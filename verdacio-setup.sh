@@ -79,4 +79,4 @@ kubectl create secret generic verdaccio-secrets \
     --from-literal=PORT="$PORT" \
     --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl apply -f /tmp/deployment.yml
+kubectl apply -f /tmp/verdacio-deployment.yml
