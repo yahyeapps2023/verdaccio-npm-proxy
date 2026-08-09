@@ -108,8 +108,8 @@ jobs:
 
       - name: Copy manifest to server
         run: |
-          scp setup.sh deploy-server:/tmp/setup.sh
-          scp deployments.yml deploy-server:/tmp/deployment.yml
+          scp verdacio-setup.sh deploy-server:/tmp/verdacio-setup.sh
+          scp verdacio-deployments.yml deploy-server:/tmp/verdacio-deployment.yml
 
       - name: Deploy
         run: |
@@ -117,8 +117,8 @@ jobs:
             -o BatchMode=yes \
             -o ConnectTimeout=10 \
             deploy-server "
-              chmod +x /tmp/setup.sh &&
-              bash /tmp/setup.sh \
+              chmod +x /tmp/verdacio-setup.sh &&
+              bash /tmp/verdacio-setup.sh \
                 --username='${{ vars.SSH_USER }}' \
                 --namespace='${{ vars.NAMESPACE }}' \
                 --sudo-password='${{ secrets.SUDO_PASSWORD }}' \
