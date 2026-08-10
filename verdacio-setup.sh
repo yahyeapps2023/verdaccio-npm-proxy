@@ -61,7 +61,7 @@ done
  
 kubectl create namespace "$NAMESPACE" \
     --dry-run=client -o yaml | kubectl apply -f -
-
+kubectl delete secret dockerhub-secret -n yahyeapps --ignore-not-found
 kubectl create secret docker-registry dockerhub-secret \
     --namespace="$NAMESPACE" \
     --docker-server="$DOCKERHUB_SERVER" \
