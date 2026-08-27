@@ -4,7 +4,12 @@
 
 storage: /verdaccio/storage
 secret: SECRET_TOKEN      
-
+security:
+  api:
+    jwt:
+      sign:
+        expiresIn: 1m
+        
 store:
   aws-s3-storage:
     bucket: R2_BUCKET
