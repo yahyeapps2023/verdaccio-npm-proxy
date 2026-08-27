@@ -8,7 +8,7 @@ security:
   api:
     jwt:
       sign:
-        expiresIn: 1m
+        expiresIn: 5y
         
 store:
   aws-s3-storage:
