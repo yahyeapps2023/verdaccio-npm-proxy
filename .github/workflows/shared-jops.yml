@@ -8,24 +8,38 @@ on:
         required: false
         default: false
 
+      server_type:
+        type: string
+        required: true
+
+      ssh_local_tunnel_dns_host:
+        type: string
+        required: false
+        default: ""
+
+      ssh_local_private_key:
+        type: string
+        required: false
+        default: ""
+
 permissions:
   contents: write
   actions: read
   security-events: write
 
 jobs:
- 
-  # ----------------------------
-  # 5️⃣ Docker Build & Push
-  # ----------------------------
+
+  # ============================================================
+  # Docker Build & Push
+  # ============================================================
+
   docker:
     if: ${{ inputs.deploy }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20 # Maximum running time for this job
- 
+    timeout-minutes: 20
+
     steps:
       - uses: actions/checkout@v4
-      # download
 
       - name: Login to Docker Hub
         uses: docker/login-action@v2
@@ -42,6 +56,11 @@ jobs:
             ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}
             ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-latest
 
+
+  # ============================================================
+  # Deploy
+  # ============================================================
+
   deploy:
     runs-on: ubuntu-latest
     if: ${{ inputs.deploy }}
@@ -50,8 +69,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+
+      # ========================================================
+      # Install cloudflared ONLY for local servers
+      # ========================================================
+
       - name: Install cloudflared
+        if: ${{ inputs.server_type == 'local' }}
         run: |
+          set -euo pipefail
+
           curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
             | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
 
@@ -61,58 +88,158 @@ jobs:
           sudo apt update
           sudo apt install -y cloudflared
 
-      - name: update image name and tag in deployment same as docker build and push
+          cloudflared --version
+
+
+      # ========================================================
+      # Update image name and tag in deployment
+      # ========================================================
+
+      - name: Update deployment image
         env:
           IMAGE: ${{ vars.DOCKER_REPO }}:${{ vars.APP_NAME }}-${{ github.sha }}
-        run: |
-          ## replace "{{HOSTNAME}}" WITH ${{ vars.HOSTNAME }} in verdacio-deployments.yml
-          sed -i "s|{{HOSTNAME}}|${{ vars.HOSTNAME }}|g" verdacio-deployments.yml
-          ## replace "{{NAMESPACE}}" WITH ${{ vars.NAMESPACE }} in verdacio-deployments.yml
-          sed -i "s|{{NAMESPACE}}|${{ vars.NAMESPACE }}|g"  verdacio-deployments.yml
-          sed -i "s|{{IMAGE}}|$IMAGE|g"   verdacio-deployments.yml
 
-      - name: Configure SSH
         run: |
+          set -euo pipefail
+
+          sed -i \
+            "s|{{HOSTNAME}}|${{ vars.HOSTNAME }}|g" \
+            verdacio-deployments.yml
+
+          sed -i \
+            "s|{{NAMESPACE}}|${{ vars.NAMESPACE }}|g" \
+            verdacio-deployments.yml
+
+          sed -i \
+            "s|{{IMAGE}}|$IMAGE|g" \
+            verdacio-deployments.yml
+
+
+      # ========================================================
+      # Configure SSH - VPS
+      # ========================================================
+
+      - name: Configure SSH for VPS
+        if: ${{ inputs.server_type == 'vps' }}
+        run: |
+          set -euo pipefail
+
           mkdir -p ~/.ssh
 
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.SSH_PRIVATE_KEY }}' \
+            > ~/.ssh/id_ed25519
+
           chmod 600 ~/.ssh/id_ed25519
 
           cat > ~/.ssh/config <<EOF
           Host deploy-server
-            HostName ${{vars.SSH_HOST}}
+            HostName ${{ vars.SSH_HOST }}
             User yahyeapps
-            port ${{vars.SSH_PORT}} 
+            Port ${{ vars.SSH_PORT }}
             IdentityFile ~/.ssh/id_ed25519
             StrictHostKeyChecking no
             UserKnownHostsFile /dev/null
-            ProxyCommand cloudflared access ssh \
-              --hostname %h \
-              --service-token-id $CLOUDFLARE_SSH_ACCESS_CLIENT_ID \
-              --service-token-secret $CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET
           EOF
-        env:
-          CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
-          CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+
+          chmod 600 ~/.ssh/config
+
+
+      # ========================================================
+      # Configure SSH - LOCAL
+      # ========================================================
+
+      - name: Configure SSH for local server
+        if: ${{ inputs.server_type == 'local' }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+
+          printf '%s\n' '${{ inputs.ssh_local_private_key }}' \
+            > ~/.ssh/id_ed25519
+
+          chmod 600 ~/.ssh/id_ed25519
+
+          cat > ~/.ssh/config <<EOF
+          Host deploy-server
+            HostName ${{ inputs.ssh_local_tunnel_dns_host }}
+            User yahyeapps
+            Port ${{ vars.SSH_PORT }}
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ProxyCommand cloudflared access ssh --hostname %h
+          EOF
+
+          chmod 600 ~/.ssh/config
+
+      # ========================================================
+      # Validate server type
+      # ========================================================
+
+      - name: Validate server type
+        run: |
+          set -euo pipefail
+
+          case "${{ inputs.server_type }}" in
+            vps)
+              echo "🟢 Server type: VPS"
+              ;;
+            local)
+              echo "🔵 Server type: LOCAL"
+              ;;
+            *)
+              echo "❌ Invalid server_type: ${{ inputs.server_type }}"
+              echo "Allowed values: vps, local"
+              exit 1
+              ;;
+          esac
+
+
+      # ========================================================
+      # Test SSH connection
+      # ========================================================
 
       - name: Test SSH connection
         run: |
-          if ! ssh -o BatchMode=yes \
+          set -euo pipefail
+
+          if ! ssh \
+              -o BatchMode=yes \
               -o ConnectTimeout=10 \
               deploy-server \
-              "echo Connected successfully"
-          then
+              "echo 'Connected successfully'"; then
+
             echo "❌ SSH connection failed."
             exit 1
           fi
 
+
+      # ========================================================
+      # Copy deployment files
+      # ========================================================
+
       - name: Copy manifest to server
         run: |
-          scp verdacio-setup.sh deploy-server:/tmp/verdacio-setup.sh
-          scp verdacio-deployments.yml deploy-server:/tmp/verdacio-deployment.yml
+          set -euo pipefail
+
+          scp \
+            verdacio-setup.sh \
+            deploy-server:/tmp/verdacio-setup.sh
+
+          scp \
+            verdacio-deployments.yml \
+            deploy-server:/tmp/verdacio-deployment.yml
+
+
+      # ========================================================
+      # Deploy
+      # ========================================================
 
       - name: Deploy
         run: |
+          set -euo pipefail
+
           ssh \
             -o BatchMode=yes \
             -o ConnectTimeout=10 \
@@ -133,17 +260,41 @@ jobs:
                 --port='${{ vars.PORT }}'
             "
 
-      - name: Trigger deployer-webhook  workflow
+      # ========================================================
+      # Trigger deployer-webhook workflow
+      # ========================================================
+
+      - name: Trigger deployer-webhook workflow
         env:
           PAT_TOKEN: ${{ secrets.SCANNER_PAT_TOKEN }}
-          DEPLOYER_WEBHOOK_DISPATCHE_PATH: ${{vars.DEPLOYER_WEBHOOK_DISPATCHE_PATH}}
+          DEPLOYER_WEBHOOK_DISPATCHE_PATH: ${{ vars.DEPLOYER_WEBHOOK_DISPATCHE_PATH }}
+          SERVER_TYPE: ${{ inputs.server_type }}
+          SSH_LOCAL_TUNNEL_DNS_HOST: ${{ inputs.ssh_local_tunnel_dns_host }}
+          SSH_LOCAL_PRIVATE_KEY: ${{ inputs.ssh_local_private_key }}
+
         run: |
+          set -euo pipefail
+
+          jq -n \
+            --arg ref "main" \
+            --arg server_type "$SERVER_TYPE" \
+            --arg ssh_local_tunnel_dns_host "$SSH_LOCAL_TUNNEL_DNS_HOST" \
+            --arg ssh_local_private_key "$SSH_LOCAL_PRIVATE_KEY" \
+            '{
+              ref: $ref,
+              inputs: {
+                server_type: $server_type,
+                ssh_local_tunnel_dns_host: $ssh_local_tunnel_dns_host,
+                ssh_local_private_key: $ssh_local_private_key
+              }
+            }' > /tmp/dispatch.json
+
           curl -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $PAT_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            $DEPLOYER_WEBHOOK_DISPATCHE_PATH \
-            -d '{
-              "ref":"main"
-            }'
+            "$DEPLOYER_WEBHOOK_DISPATCHE_PATH" \
+            --data-binary @/tmp/dispatch.json
+
+          rm -f /tmp/dispatch.json
