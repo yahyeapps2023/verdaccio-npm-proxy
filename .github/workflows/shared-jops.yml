@@ -121,6 +121,9 @@ jobs:
 
       - name: Configure SSH for VPS
         if: ${{ inputs.server_type == 'vps' }}
+        env:
+          CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
+          CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -139,10 +142,13 @@ jobs:
             IdentityFile ~/.ssh/id_ed25519
             StrictHostKeyChecking no
             UserKnownHostsFile /dev/null
+            ProxyCommand cloudflared access ssh \
+              --hostname %h \
+              --service-token-id \$CLOUDFLARE_SSH_ACCESS_CLIENT_ID \
+              --service-token-secret \$CLOUDFLARE_ACCESS_CLIENT_SECRET
           EOF
 
           chmod 600 ~/.ssh/config
-
 
       # ========================================================
       # Configure SSH - LOCAL
