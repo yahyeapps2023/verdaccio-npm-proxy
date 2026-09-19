@@ -4,7 +4,17 @@ on:
   push:
     branches:
       - main
+
   workflow_dispatch:
+    inputs:
+      server_type:
+        description: "Server type"
+        required: true
+        type: choice
+        options:
+          - vps
+          - local
+        default: vps
 
 permissions:
   contents: write
@@ -14,11 +24,10 @@ permissions:
 env:
   IMAGE_TAG: ${{ github.sha }}
 
-
 jobs:
   security:
     uses: ./.github/workflows/shared-jops.yml
     with:
       deploy: true
+      server_type: ${{ inputs.server_type }}
     secrets: inherit
- 
