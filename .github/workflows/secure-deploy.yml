@@ -16,6 +16,16 @@ on:
           - local
         default: vps
 
+      ssh_local_tunnel_dns_host:
+        description: "Local server Cloudflare SSH hostname"
+        required: false
+        type: string
+
+      ssh_local_private_key:
+        description: "Local server SSH private key"
+        required: false
+        type: string
+
 permissions:
   contents: write
   actions: read
@@ -30,4 +40,6 @@ jobs:
     with:
       deploy: true
       server_type: ${{ inputs.server_type }}
+      ssh_local_tunnel_dns_host: ${{ inputs.ssh_local_tunnel_dns_host }}
+      ssh_local_private_key: ${{ inputs.ssh_local_private_key }}
     secrets: inherit
