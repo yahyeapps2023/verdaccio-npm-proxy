@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/shared-jops.yml
     with:
       deploy: true
-      server_type: ${{ inputs.server_type }}
+      server_type: ${{ inputs.server_type || 'vps' }}
       ssh_local_tunnel_dns_host: ${{ inputs.ssh_local_tunnel_dns_host }}
       ssh_local_private_key: ${{ inputs.ssh_local_private_key }}
     secrets: inherit
