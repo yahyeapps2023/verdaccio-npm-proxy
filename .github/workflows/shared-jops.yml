@@ -70,15 +70,13 @@ jobs:
       - uses: actions/checkout@v4
 
 
-      # ========================================================
-      # Install cloudflared ONLY for local servers
-      # ========================================================
+
+      # ============================================================
+      # Install cloudflared
+      # ============================================================
 
       - name: Install cloudflared
-        if: ${{ inputs.server_type == 'local' }}
         run: |
-          set -euo pipefail
-
           curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
             | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
 
