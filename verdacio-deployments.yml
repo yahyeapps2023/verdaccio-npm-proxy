@@ -10,23 +10,6 @@ metadata:
 
 ---
 
-# TLS Certificate
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: verdaccio-cert
-  namespace: "{{NAMESPACE}}"
-spec:
-  secretName: verdaccio-cert-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  commonName: "{{HOSTNAME}}"
-  dnsNames:
-    - "{{HOSTNAME}}"
-
----
-
 # Persistent storage for htpasswd
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -207,7 +190,7 @@ spec:
   tls:
     - hosts:
         - "{{HOSTNAME}}"
-      secretName: verdaccio-cert-tls
+      secretName: verdaccio-tls
 
   rules:
     - host: "{{HOSTNAME}}"
