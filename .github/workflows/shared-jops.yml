@@ -116,37 +116,179 @@ jobs:
       # ========================================================
       # Configure SSH - VPS
       # ========================================================
+ 
 
       - name: Configure SSH for VPS
         if: ${{ inputs.server_type == 'vps' }}
         env:
           CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
-          CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+          CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET }}
+          CI_SSH_PRIVATE_KEY: ${{ secrets.CI_ACTION_PRIVATE_KEY }}
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
         run: |
           set -euo pipefail
 
+          echo "========================================"
+          echo "Configuring SSH"
+          echo "========================================"
+
+          # ----------------------------------------------------
+          # Validate required values
+          # ----------------------------------------------------
+          test -n "$CLOUDFLARE_SSH_ACCESS_CLIENT_ID" || {
+            echo "❌ Cloudflare Client ID is empty"
+            exit 1
+          }
+
+          test -n "$CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET" || {
+            echo "❌ Cloudflare Client Secret is empty"
+            exit 1
+          }
+
+          test -n "$CI_SSH_PRIVATE_KEY" || {
+            echo "❌ SSH private key is empty"
+            exit 1
+          }
+
+          test -n "$SSH_HOST" || {
+            echo "❌ SSH_HOST is empty"
+            exit 1
+          }
+
+          test -n "$SSH_PORT" || {
+            echo "❌ SSH_PORT is empty"
+            exit 1
+          }
+
+          echo "✅ Cloudflare credentials present"
+          echo "   Client ID length: ${#CLOUDFLARE_SSH_ACCESS_CLIENT_ID}"
+          echo "   Client Secret length: ${#CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET}"
+
+          echo "✅ SSH private key present"
+          echo "✅ SSH host: $SSH_HOST"
+          echo "✅ SSH port: $SSH_PORT"
+
+          # ----------------------------------------------------
+          # Install private key
+          # ----------------------------------------------------
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
 
-          printf '%s\n' '${{ secrets.CI_ACTION_PRIVATE_KEY }}' \
-            > ~/.ssh/id_ed25519
-
+          printf '%s\n' "$CI_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          cat > ~/.ssh/config <<EOF
-          Host deploy-server
-            HostName ${{ vars.SSH_HOST }}
-            User yahyeapps
-            Port ${{ vars.SSH_PORT }}
-            IdentityFile ~/.ssh/id_ed25519
-            StrictHostKeyChecking no
-            UserKnownHostsFile /dev/null
-            ProxyCommand cloudflared access ssh \
-              --hostname %h \
-              --service-token-id \$CLOUDFLARE_SSH_ACCESS_CLIENT_ID \
-              --service-token-secret \$CLOUDFLARE_ACCESS_CLIENT_SECRET
+          # ----------------------------------------------------
+          # Validate private key
+          # ----------------------------------------------------
+          echo ""
+          echo "Checking private key..."
+
+          ssh-keygen -y \
+            -f ~/.ssh/id_ed25519 \
+            > /tmp/ci_public_key.pub
+
+          echo "✅ Private key is valid and can be parsed"
+
+          echo ""
+          echo "SSH key fingerprint:"
+          ssh-keygen -lf /tmp/ci_public_key.pub
+
+          rm -f /tmp/ci_public_key.pub
+
+          # ----------------------------------------------------
+          # Create Cloudflare SSH proxy
+          #
+          # Cloudflare credentials remain in the environment.
+          # They are NOT written to ~/.ssh/config.
+          # ----------------------------------------------------
+          cat > ~/.ssh/cloudflared-proxy.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          test -n "${1:-}" || {
+            echo "Missing SSH hostname" >&2
+            exit 1
+          }
+
+          test -n "${CLOUDFLARE_SSH_ACCESS_CLIENT_ID:-}" || {
+            echo "Missing Cloudflare Client ID" >&2
+            exit 1
+          }
+
+          test -n "${CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET:-}" || {
+            echo "Missing Cloudflare Client Secret" >&2
+            exit 1
+          }
+
+          exec cloudflared access ssh \
+            --hostname "$1" \
+            --service-token-id "$CLOUDFLARE_SSH_ACCESS_CLIENT_ID" \
+            --service-token-secret "$CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET"
           EOF
 
+          chmod 700 ~/.ssh/cloudflared-proxy.sh
+
+          # ----------------------------------------------------
+          # SSH configuration
+          # ----------------------------------------------------
+          cat > ~/.ssh/config <<'EOF'
+          Host deploy-server
+            HostName PLACEHOLDER_HOST
+            User yahyeapps
+            Port PLACEHOLDER_PORT
+
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+
+            ConnectTimeout 20
+            ConnectionAttempts 1
+
+            ProxyCommand ~/.ssh/cloudflared-proxy.sh %h
+          EOF
+
+          # ----------------------------------------------------
+          # Insert actual SSH host and port
+          # ----------------------------------------------------
+          sed -i \
+            "s|PLACEHOLDER_HOST|$SSH_HOST|g; s|PLACEHOLDER_PORT|$SSH_PORT|g" \
+            ~/.ssh/config
+
           chmod 600 ~/.ssh/config
+
+          # ----------------------------------------------------
+          # Validate generated SSH configuration
+          # ----------------------------------------------------
+          echo ""
+          echo "Generated SSH configuration:"
+          cat ~/.ssh/config
+
+          echo ""
+          echo "SSH proxy permissions:"
+          ls -l ~/.ssh/cloudflared-proxy.sh
+
+          echo ""
+          echo "SSH config permissions:"
+          ls -l ~/.ssh/config
+
+          echo ""
+          echo "Testing SSH configuration parsing..."
+
+          ssh -G deploy-server >/tmp/ssh-config-test.txt
+
+          grep -E \
+            '^(hostname|user|port|identityfile|identitiesonly|proxycommand|stricthostkeychecking|userknownhostsfile|connecttimeout|connectionattempts) ' \
+            /tmp/ssh-config-test.txt
+
+          rm -f /tmp/ssh-config-test.txt
+
+          echo ""
+          echo "✅ SSH configuration complete"
+          
+
 
       # ========================================================
       # Configure SSH - LOCAL
