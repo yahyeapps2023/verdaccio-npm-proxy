@@ -65,7 +65,9 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.deploy }}
     needs: [docker]
-
+    env:
+        CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
+        CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v4
 
