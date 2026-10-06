@@ -67,7 +67,8 @@ jobs:
       needs: [docker]
       env:
         CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
-        CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET }}
+        # Map the actual repository secret name to the expected env variable:
+        CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
       steps:
         - uses: actions/checkout@v4
   
@@ -120,12 +121,14 @@ jobs:
         # ========================================================
         - name: Configure SSH for VPS
           if: ${{ inputs.server_type == 'vps' }}
+ 
           env:
-            CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
-            CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET }}
-            CI_SSH_PRIVATE_KEY: ${{ secrets.CI_ACTION_PRIVATE_KEY }}
-            SSH_HOST: ${{ vars.SSH_HOST }}
-            SSH_PORT: ${{ vars.SSH_PORT }}
+              CLOUDFLARE_SSH_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_SSH_ACCESS_CLIENT_ID }}
+              # Fix the mapping here as well:
+              CLOUDFLARE_SSH_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+              CI_SSH_PRIVATE_KEY: ${{ secrets.CI_ACTION_PRIVATE_KEY }}
+              SSH_HOST: ${{ vars.SSH_HOST }}
+              SSH_PORT: ${{ vars.SSH_PORT }}
           run: |
             set -euo pipefail
   
